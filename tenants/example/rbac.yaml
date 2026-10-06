@@ -1,0 +1,22 @@
+# What the team's repository is applied as. Flux impersonates this service account, so the repository
+# can do what the `admin` role allows inside `example` - including its HTTPRoutes, see
+# infrastructure/configs/gateway-api-rbac.yaml - and nothing outside it.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flux-reconciler
+  namespace: example
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flux-reconciler
+  namespace: example
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: flux-reconciler
+    namespace: example

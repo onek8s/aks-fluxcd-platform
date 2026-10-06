@@ -1,0 +1,55 @@
+# The cluster's public entry point, on the App Routing Gateway API implementation AKS provides
+# (`approuting-istio` - see aks-terraform). AKS gives it an Envoy Deployment, an HPA, a PDB and a
+# LoadBalancer Service with a public IP, all in this namespace.
+#
+# The platform owns everything here: which hostnames the cluster answers to, which team may attach
+# routes to each one, and the TLS certificate of each. A team publishes an app by attaching an
+# HTTPRoute to the listener it is given, naming neither hostname nor certificate.
+#
+#   ${public_dns_label}  Azure DNS label of the public IP, which makes it reachable as
+#                        <label>.<region>.cloudapp.azure.com. Unique within the region.
+#   ${public_hostname}   The hostname the `example` team is published on.
+#
+# Both are set per cluster in clusters/<cluster>/infrastructure.yaml.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public
+  namespace: ingress-gateway
+  annotations:
+    # cert-manager keeps a certificate for every HTTPS listener below that names a hostname, in the
+    # Secret its certificateRefs names.
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  gatewayClassName: approuting-istio
+  infrastructure:
+    # Carried over to the Service AKS creates for the Gateway.
+    annotations:
+      service.beta.kubernetes.io/azure-dns-label-name: ${public_dns_label}
+  listeners:
+    # Plain HTTP serves two things only: the ACME HTTP-01 challenges of cert-manager, and a redirect
+    # to HTTPS for everything else (https-redirect.yaml). Nothing outside this namespace attaches.
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    # One HTTPS listener per published hostname, each open to the routes of one team namespace.
+    - name: https-example
+      protocol: HTTPS
+      port: 443
+      hostname: ${public_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: https-example-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: example

@@ -1,0 +1,19 @@
+# Sends every plain HTTP request to HTTPS. The HTTP-01 challenge routes cert-manager adds name the
+# exact hostname and path, so they take precedence over this catch-all while a certificate is issued.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect
+  namespace: ingress-gateway
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+      sectionName: http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

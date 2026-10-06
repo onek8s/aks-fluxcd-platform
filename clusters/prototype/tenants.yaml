@@ -1,0 +1,19 @@
+# The team namespaces' own repositories, set up once the Gateway they publish through and the RBAC
+# their routes need are in place. It does not wait for the teams' apps: a team whose deployment fails
+# shows up on its own Kustomization in its own namespace, not on this one.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tenants
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-configs
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./tenants
+  prune: true

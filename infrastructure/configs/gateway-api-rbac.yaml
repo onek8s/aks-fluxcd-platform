@@ -1,0 +1,27 @@
+# Lets the built-in `admin` and `edit` roles manage Gateway API routes, and `view` read them, in the
+# namespaces they are bound in. The Gateway API CRDs come with no roles of their own, so without this
+# a team - and the service account Flux applies a team's repository as - cannot publish anything.
+#
+# Routes only: Gateways, their listeners and their certificates stay with the platform.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gateway-api-routes-edit
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes", "grpcroutes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gateway-api-routes-view
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes", "grpcroutes", "gateways"]
+    verbs: ["get", "list", "watch"]
