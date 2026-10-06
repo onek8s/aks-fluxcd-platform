@@ -20,8 +20,9 @@ spec:
   prune: true
   wait: true
 ---
-# The configuration built on the controllers - the Let's Encrypt issuers and the public Gateway - with
-# this cluster's own values filled in.
+# The configuration built on the controllers - the Let's Encrypt issuers, the Application Gateway for
+# Containers load balancer and the public Gateway - with this cluster's own values filled in from
+# cluster-settings.yaml.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -40,8 +41,6 @@ spec:
   prune: true
   wait: true
   postBuild:
-    substitute:
-      # The Gateway's public IP is published as <label>.swedencentral.cloudapp.azure.com, which is
-      # also the hostname the `example` team is served on until the cluster has a domain of its own.
-      public_dns_label: olljanat-aks-prototype
-      public_hostname: olljanat-aks-prototype.swedencentral.cloudapp.azure.com
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
