@@ -2,5 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
+  - application-load-balancer.yaml
   - gateway.yaml
   - https-redirect.yaml

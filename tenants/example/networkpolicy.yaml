@@ -1,0 +1,19 @@
+# The namespace accepts connections from its own pods only, and Application Gateway for Containers is
+# not a pod: it reaches the pods directly from addresses in its own subnet. This lets that subnet in,
+# to any pod of the namespace - the load balancer only ever connects to the backends the namespace's
+# own HTTPRoutes name.
+#
+# `${agc_subnet_cidr}` comes from aks-terraform, through cluster-settings.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-application-gateway
+  namespace: example
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: ${agc_subnet_cidr}

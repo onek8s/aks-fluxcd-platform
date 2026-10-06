@@ -2,10 +2,9 @@
 # integration on, it reads the `cert-manager.io/cluster-issuer` annotation of a Gateway and keeps a
 # certificate for every HTTPS listener that names a hostname - see infrastructure/configs.
 #
-# The Gateway API itself is AKS's: the managed CRDs and the App Routing `approuting-istio`
-# GatewayClass, both turned on by aks-terraform. AKS can source listener certificates from Key Vault
-# as well, but only with a Key Vault, a DNS zone and a workload identity behind it; cert-manager
-# needs none of them.
+# The Gateway API itself is AKS's: the managed CRDs and the Application Gateway for Containers
+# `azure-alb-external` GatewayClass, both turned on by aks-terraform. The certificates are kept in
+# Kubernetes Secrets, which Application Gateway for Containers reads the listener certificates from.
 #
 # The version follows patch releases on its own; a new minor version is a change to this file.
 apiVersion: helm.toolkit.fluxcd.io/v2

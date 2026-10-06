@@ -1,0 +1,20 @@
+# The values that make this cluster's configuration its own, handed to `infra-configs` and `tenants`
+# through `postBuild.substituteFrom`.
+#
+# The `${agc_...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives
+# the facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
+# applied by that one. They are not to be written here by hand.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-settings
+  namespace: flux-system
+data:
+  # Resource ID of the subnet Application Gateway for Containers joins (snet-aks-alb).
+  agc_subnet_id: "${agc_subnet_id}"
+  # Its address range: where Application Gateway for Containers connects to the pods from.
+  agc_subnet_cidr: "${agc_subnet_cidr}"
+  # The hostname the `example` team is published on. Point its DNS record - a CNAME - at the frontend
+  # FQDN of the Gateway (`kubectl -n ingress-gateway get gateway public`).
+  # TODO: replace with the real hostname.
+  example_hostname: "hello.example.com"

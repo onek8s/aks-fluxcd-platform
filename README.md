@@ -10,6 +10,7 @@ else lives here.
 ```
 clusters/
   prototype/
+    cluster-settings.yaml # this cluster's values, for `infra-configs` and `tenants`
     infrastructure.yaml   # Flux Kustomizations `infra-controllers` and `infra-configs`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
 infrastructure/
@@ -19,14 +20,14 @@ infrastructure/
   configs/                # configuration that needs the controllers' CRDs
     cluster-issuers.yaml  # Let's Encrypt, production and staging
     gateway-api-rbac.yaml # lets the namespace `admin`/`edit` roles manage HTTPRoutes
-    gateway/              # the public Gateway, and the HTTP to HTTPS redirect
+    gateway/              # the AGC load balancer, the public Gateway, the HTTP to HTTPS redirect
 tenants/
   example/                # the `example` team: olljanat-ai/aks-hello, synced into `example`
 ```
 
 - `clusters/<cluster>/` is the path a cluster's `flux_git_repository.path` names. It holds Flux
   `Kustomization` objects only, each pulling in a shared directory, so adding a cluster is a new
-  directory with the same files - and its own values for the variables of `infra-configs`.
+  directory with the same files - and its own `cluster-settings.yaml`.
 - `infrastructure/controllers/` is shared by every cluster. Its Kustomization waits for the
   controllers to be ready, so configuration that needs their CRDs can follow it with
   `dependsOn: [{ name: infra-controllers }]`.
@@ -47,47 +48,56 @@ nothing until one is added.
 
 ## Publishing applications
 
-Applications are published through the [Kubernetes Gateway API][gatewayapi], on the
-[App Routing Gateway API implementation][approuting] AKS provides. aks-terraform turns on the
-managed Gateway API CRDs and the `approuting-istio` GatewayClass; nothing here installs a gateway
-controller or CRDs of its own.
+Applications are published through the [Kubernetes Gateway API][gatewayapi] on
+[Application Gateway for Containers][agc] (AGC), Azure's load balancer for it. aks-terraform turns on
+the managed Gateway API CRDs and the ALB Controller add-on, which provides the `azure-alb-external`
+GatewayClass; nothing here installs a gateway controller or CRDs of its own. The proxies are an
+Azure resource, not pods in the cluster.
 
 The split between the platform and the teams is the [Gateway API role model][roles]:
 
 | | Who | Where |
 | --- | --- | --- |
-| The GatewayClass and its control plane | AKS | aks-terraform |
+| The GatewayClass, its controller, the delegated subnet | AKS / Platform | aks-terraform |
+| The AGC load balancer (`ApplicationLoadBalancer`) | Platform | `infrastructure/configs/gateway` |
 | The `public` Gateway: hostnames, listeners, who may attach to each, TLS, HTTP to HTTPS redirect | Platform | `infrastructure/configs/gateway` |
 | Certificates | Platform | cert-manager and `infrastructure/configs/cluster-issuers.yaml` |
+| Letting AGC into a team namespace | Platform | `tenants/<team>/networkpolicy.yaml` |
 | `HTTPRoute`, `Service`, the app | Team | the team's own repository |
 
-The `public` Gateway lives in `ingress-gateway`. AKS gives it an Envoy `Deployment` (two to five
-replicas through an HPA), a PDB and a `LoadBalancer` `Service` with a public IP there. It has:
+Everything lives in `ingress-gateway`:
 
-- an **`http`** listener on port 80, open to routes of `ingress-gateway` only. It carries the
-  ACME HTTP-01 challenges of cert-manager and redirects everything else to HTTPS;
-- one **HTTPS listener per published hostname**, each open to the `HTTPRoute`s of one team
-  namespace and terminating TLS with a certificate cert-manager keeps for that hostname. A team's
-  route names the listener (`sectionName`) and neither hostname nor certificate.
+- an **`ApplicationLoadBalancer`** named `public`. The add-on creates the AGC resource for it in the
+  node resource group, joined to the delegated subnet, and deletes it again with the object;
+- the **`public` Gateway**, a frontend of that load balancer. Its address is an Azure-generated FQDN
+  (`<random>.fzNN.alb.azure.com`, in the Gateway's status) that the published hostnames are CNAMEs
+  to. It has:
+  - an **`http`** listener on port 80, open to routes of `ingress-gateway` only. It carries the
+    ACME HTTP-01 challenges of cert-manager and redirects everything else to HTTPS;
+  - one **HTTPS listener per published hostname**, each open to the `HTTPRoute`s of one team
+    namespace and terminating TLS with a certificate cert-manager keeps for that hostname. A team's
+    route names the listener (`sectionName`) and neither hostname nor certificate.
 
-The values that differ by cluster are Flux variables, set in `clusters/<cluster>/infrastructure.yaml`:
+### Cluster settings
 
-| Variable | prototype | |
+The values that differ by cluster are Flux variables, kept in `clusters/<cluster>/cluster-settings.yaml`
+and handed to `infra-configs` and `tenants` through `postBuild.substituteFrom`:
+
+| Variable | Set by | |
 | --- | --- | --- |
-| `public_dns_label` | `olljanat-aks-prototype` | Azure DNS label of the Gateway's public IP: `<label>.<region>.cloudapp.azure.com`. Unique within the region. |
-| `public_hostname` | `olljanat-aks-prototype.swedencentral.cloudapp.azure.com` | The hostname of the `https-example` listener. |
+| `agc_subnet_id` | aks-terraform | Resource ID of the delegated AGC subnet, for the `ApplicationLoadBalancer`. |
+| `agc_subnet_cidr` | aks-terraform | Its range, which AGC connects to the pods from. |
+| `example_hostname` | this repository | The hostname of the `https-example` listener. |
 
-The prototype has no domain of its own, so the `example` team is published on the Azure name of the
-public IP itself. With a domain, point a DNS record for each hostname at the Gateway's address and
-set the listener hostnames to them; the certificates follow on their own.
+The first two are Azure facts and are never written here: aks-terraform gives them to the cluster's
+Flux configuration as post-build variables of the `platform` Kustomization, which fills them into
+`cluster-settings.yaml` as it applies it.
 
-AKS can also take listener certificates from Azure Key Vault and publish hostnames to Azure DNS,
-through the App Routing operator. That needs App Routing itself, the Key Vault provider for the
-Secrets Store CSI driver, a DNS zone and a workload identity, none of which the clusters have, so
-certificates come from Let's Encrypt through cert-manager instead. Moving to Key Vault later changes
-the listener's `tls` and nothing a team owns.
+A new hostname goes live in three steps: set it in `cluster-settings.yaml`, point a CNAME for it at
+the Gateway's FQDN (`kubectl -n ingress-gateway get gateway public`), and wait for cert-manager to
+have Let's Encrypt validate it over HTTP - which only succeeds once the CNAME resolves.
 
-[approuting]: https://learn.microsoft.com/azure/aks/app-routing-gateway-api
+[agc]: https://learn.microsoft.com/azure/application-gateway/for-containers/overview
 [gatewayapi]: https://gateway-api.sigs.k8s.io/
 [roles]: https://gateway-api.sigs.k8s.io/concepts/roles-and-personas/
 
@@ -100,12 +110,12 @@ deploy into it from its own repository:
 - a `flux-reconciler` service account bound to the `admin` role in that namespace alone;
 - a `GitRepository` for the team's repository and a Flux `Kustomization` that applies it as that
   service account, with `targetNamespace` set to the namespace. Both sit in the team namespace,
-  since the AKS Flux extension refuses references across namespaces.
+  since the AKS Flux extension refuses references across namespaces;
+- a `NetworkPolicy` that lets AGC in from its subnet. The namespace accepts connections from its own
+  pods only, and AGC reaches the pods from addresses in that subnet rather than from the cluster.
 
 The team can therefore change its own namespace and nothing else - its `HTTPRoute`s included, which
-`infrastructure/configs/gateway-api-rbac.yaml` adds to `admin`. Because the namespace accepts
-connections from its own pods only, the team's repository carries a `NetworkPolicy` that lets the
-Gateway's proxies in from `ingress-gateway`.
+`infrastructure/configs/gateway-api-rbac.yaml` adds to `admin`.
 
 | Team | Namespace | Repository | Listener |
 | --- | --- | --- | --- |
