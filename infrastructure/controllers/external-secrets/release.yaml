@@ -1,0 +1,56 @@
+# External Secrets Operator: the controller, its CRDs, the validating webhook and the controller
+# that keeps the webhook's certificate. Only the operator - no SecretStore or ClusterSecretStore
+# yet, so it syncs nothing until one is added.
+#
+# The version follows patch releases on its own; a new minor version is a change to this file.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: external-secrets
+      version: "2.12.x"
+      sourceRef:
+        kind: HelmRepository
+        name: external-secrets
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # The chart ships its CRDs as ordinary templates rather than in crds/, so they are installed and
+    # upgraded with the release - Flux's `crds` policy does not apply to them. They are kept when the
+    # release is removed: deleting a CRD deletes every ExternalSecret and store of that kind with it.
+    installCRDs: true
+    crds:
+      annotations:
+        helm.sh/resource-policy: keep
+    # Requests sized for a small cluster. No limits on CPU, so the controllers are never throttled;
+    # memory is capped so a leak is a restart rather than pressure on the node.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    webhook:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+    certController:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi

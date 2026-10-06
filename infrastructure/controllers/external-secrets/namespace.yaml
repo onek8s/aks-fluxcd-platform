@@ -1,0 +1,11 @@
+# Held to the restricted Pod Security Standard, like every namespace the cluster manages itself.
+# The chart's controller, webhook and cert controller all run non-root, with no privilege escalation,
+# every capability dropped and the RuntimeDefault seccomp profile, so they meet it as they are.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
