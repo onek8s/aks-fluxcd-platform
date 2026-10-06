@@ -1,0 +1,42 @@
+# The team's repository, synced into its own namespace. The AKS Flux extension refuses references
+# across namespaces, so the source sits next to the Kustomization that reads it.
+#
+# The repository is private. `aks-hello-git` holds a read-only token for it and is created by hand -
+# see the README; Git is no place for it.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: aks-hello
+  namespace: example
+spec:
+  interval: 5m
+  url: https://github.com/olljanat-ai/aks-hello
+  ref:
+    branch: main
+  secretRef:
+    name: aks-hello-git
+  # Only the manifests are of any interest to the cluster.
+  ignore: |
+    /*
+    !/deploy/
+---
+# `targetNamespace` puts everything in `example` whatever the manifests say, and the service account
+# keeps it there even if they try otherwise. `wait` holds the Kustomization not-ready until the app
+# has rolled out.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: aks-hello
+  namespace: example
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: aks-hello
+  path: ./deploy
+  targetNamespace: example
+  serviceAccountName: flux-reconciler
+  prune: true
+  wait: true

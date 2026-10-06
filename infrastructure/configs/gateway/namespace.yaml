@@ -1,0 +1,15 @@
+# Where the public Gateway lives, and with it the Envoy proxies App Routing runs for it and the
+# HTTP-01 solver pods cert-manager starts for its certificates.
+#
+# Held at the baseline Pod Security Standard rather than restricted: the proxies come from AKS's own
+# Istio gateway template, which is not ours to change, and bind ports 80 and 443 through the
+# `net.ipv4.ip_unprivileged_port_start` sysctl rather than a capability. Restricted is still audited
+# and warned about, so anything here that falls short of it stays on the record.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-gateway
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

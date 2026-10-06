@@ -1,0 +1,65 @@
+# cert-manager: issues and renews the TLS certificates of the Gateway listeners. With the Gateway API
+# integration on, it reads the `cert-manager.io/cluster-issuer` annotation of a Gateway and keeps a
+# certificate for every HTTPS listener that names a hostname - see infrastructure/configs.
+#
+# The Gateway API itself is AKS's: the managed CRDs and the App Routing `approuting-istio`
+# GatewayClass, both turned on by aks-terraform. AKS can source listener certificates from Key Vault
+# as well, but only with a Key Vault, a DNS zone and a workload identity behind it; cert-manager
+# needs none of them.
+#
+# The version follows patch releases on its own; a new minor version is a change to this file.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: cert-manager
+      version: "v1.21.x"
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # The chart ships its CRDs as ordinary templates, so they are installed and upgraded with the
+    # release. They are kept when the release is removed: deleting a CRD deletes every Certificate
+    # and issuer of that kind with it.
+    crds:
+      enabled: true
+      keep: true
+    config:
+      apiVersion: controller.config.cert-manager.io/v1alpha1
+      kind: ControllerConfiguration
+      gatewayAPI:
+        enabled: true
+    # Requests sized for a small cluster. No limits on CPU, so the controllers are never throttled;
+    # memory is capped so a leak is a restart rather than pressure on the node.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    webhook:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+    cainjector:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 256Mi

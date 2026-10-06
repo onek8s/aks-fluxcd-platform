@@ -2,8 +2,8 @@
 # this directory, so that whatever builds on them - the External Secrets stores, for one - can wait
 # for them with `dependsOn: [{ name: infra-controllers }]` and is never applied before its CRDs exist.
 #
-# `main` is the GitRepository the AKS Flux extension creates for the cluster's Flux configuration,
-# which Terraform names `main` and points at this directory.
+# `platform` is the GitRepository the AKS Flux extension creates for the cluster's Flux
+# configuration, which Terraform names `platform` and points at this directory.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -15,7 +15,33 @@ spec:
   timeout: 5m
   sourceRef:
     kind: GitRepository
-    name: main
+    name: platform
   path: ./infrastructure/controllers
   prune: true
   wait: true
+---
+# The configuration built on the controllers - the Let's Encrypt issuers and the public Gateway - with
+# this cluster's own values filled in.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-configs
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/configs
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      # The Gateway's public IP is published as <label>.swedencentral.cloudapp.azure.com, which is
+      # also the hostname the `example` team is served on until the cluster has a domain of its own.
+      public_dns_label: olljanat-aks-prototype
+      public_hostname: olljanat-aks-prototype.swedencentral.cloudapp.azure.com
