@@ -1,8 +1,8 @@
 # The team's repository, synced into its own namespace. The AKS Flux extension refuses references
 # across namespaces, so the source sits next to the Kustomization that reads it.
 #
-# The repository is private. `aks-fluxcd-example-git` holds a read-only token for it and is created by
-# hand - see the README; Git is no place for it.
+# The repository is private. `aks-fluxcd-example-git` holds a read-only token for it, synced from Key
+# Vault by key-vault.yaml - see the README; Git is no place for it.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:
