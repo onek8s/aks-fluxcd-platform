@@ -9,7 +9,7 @@ metadata:
 spec:
   dependsOn:
     - name: infra-configs
-  interval: 1h
+  interval: 10m
   retryInterval: 1m
   timeout: 5m
   sourceRef:
