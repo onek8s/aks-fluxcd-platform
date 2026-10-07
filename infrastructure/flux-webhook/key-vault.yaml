@@ -1,0 +1,43 @@
+# Key Vault, read as flux-system's share of it - the secrets named `flux-system--...` - as every
+# namespace with a share reads its own (see infrastructure/certificates/secret-store.yaml). The
+# service account's name is part of the federation aks-terraform makes, so it cannot change.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: key-vault
+  namespace: flux-system
+  annotations:
+    azure.workload.identity/client-id: ${key_vault_client_id_flux_system}
+    azure.workload.identity/tenant-id: ${azure_tenant_id}
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: key-vault
+  namespace: flux-system
+spec:
+  provider:
+    azurekv:
+      authType: WorkloadIdentity
+      vaultUrl: ${key_vault_url}
+      serviceAccountRef:
+        name: key-vault
+---
+# The token GitHub signs webhook deliveries with, as the `token` key the Receiver reads. Rotate it in
+# the vault and in the repository's webhook settings together.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: github-webhook-token
+  namespace: flux-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: key-vault
+  target:
+    name: github-webhook-token
+  data:
+    - secretKey: token
+      remoteRef:
+        key: secret/flux-system--github-webhook-token

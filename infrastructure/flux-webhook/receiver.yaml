@@ -1,0 +1,21 @@
+# Reconciles the platform's own repository on a GitHub push (and answers GitHub's ping). It sits in
+# flux-system, next to the GitRepository: the AKS Flux extension refuses references across
+# namespaces. Its URL path is `status.webhookPath` - /hook/ followed by a digest of the token, the
+# Receiver's name and its namespace - which the repository's webhook is set to, with the token as its
+# secret. See the README, "Webhook".
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Receiver
+metadata:
+  name: github
+  namespace: flux-system
+spec:
+  type: github
+  events:
+    - ping
+    - push
+  secretRef:
+    name: github-webhook-token
+  resources:
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: GitRepository
+      name: platform
