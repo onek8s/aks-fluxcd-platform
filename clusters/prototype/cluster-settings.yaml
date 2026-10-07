@@ -18,6 +18,7 @@ data:
   key_vault_url: "${key_vault_url}"
   key_vault_client_id_ingress_gateway: "${key_vault_client_id_ingress_gateway}"
   key_vault_client_id_example: "${key_vault_client_id_example}"
+  key_vault_client_id_flux_system: "${key_vault_client_id_flux_system}"
   # The Azure DNS zone the listener hostnames are published in, and the identity that writes it.
   dns_zone_name: "${dns_zone_name}"
   dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
@@ -46,3 +47,8 @@ data:
   # from inside the network, can read it.
   traefik_hostname: "traefik.onek8s.lol"
   traefik_internal_hostname: "traefik.internal.onek8s.lol"
+
+  # Set here. The hostname Flux's webhook receiver is published on, in dns_zone_name (one level below
+  # it, for the wildcard certificate) - on the internet, to the public IP of Traefik's
+  # `traefik-public` Service. GitHub's webhook for the platform repository points at it.
+  flux_webhook_hostname: "flux-webhook.onek8s.lol"

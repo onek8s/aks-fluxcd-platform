@@ -76,6 +76,12 @@ spec:
       enabled: false
     # Listeners of the Gateway name these ports - 8000 and 8443, the entry points inside the pod - and
     # the load balancer takes the usual 80 and 443.
+    #
+    # `webhook` (9443) is the one entry point reachable from the internet: it is on the `public`
+    # Service below and on no other, and only the `public` Gateway in flux-system listens on it
+    # (infrastructure/flux-webhook). Every listener of the internal Gateway is on 8000 or 8443, which
+    # the public Service does not carry - so no internal hostname answers from the internet, whatever
+    # Host or SNI a client sends.
     ports:
       web:
         port: 8000
@@ -83,6 +89,16 @@ spec:
       websecure:
         port: 8443
         exposedPort: 443
+      webhook:
+        port: 9443
+        exposedPort: 443
+        protocol: TCP
+        expose:
+          default: false
+          public: true
+        http:
+          tls:
+            enabled: true
     # The type is the chart's `service.type`, not one in `service.spec`: chart 39 writes both into the
     # Service, and a duplicate key fails Flux's post-render.
     service:
@@ -93,6 +109,16 @@ spec:
         # Keeps the client's address, rather than the node's, on the requests Traefik sees - and only
         # sends traffic to the nodes a Traefik pod runs on.
         externalTrafficPolicy: Local
+      # `traefik-public`: a public IP on the cluster's Azure load balancer, carrying the `webhook`
+      # entry point only. external-dns publishes ${flux_webhook_hostname} to it in the public zone
+      # (its `service` source; the internal Service names no hostname and is left alone).
+      additionalServices:
+        public:
+          type: LoadBalancer
+          annotations:
+            external-dns.alpha.kubernetes.io/hostname: ${flux_webhook_hostname}
+          spec:
+            externalTrafficPolicy: Local
     # One replica: the prototype cluster is a single small node, where a second proxy buys no
     # availability and takes room the rest of the platform needs. An update stops the old pod before
     # it starts the new one (the chart's default surges a third pod first), so it never needs room

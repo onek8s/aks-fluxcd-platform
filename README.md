@@ -12,7 +12,7 @@ clusters/
   prototype/
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
-                          # `infra-certificates`, `traefik` and `external-dns`
+                          # `infra-certificates`, `traefik`, `external-dns` and `flux-webhook`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
 infrastructure/
   controllers/            # cluster-wide controllers every cluster runs
@@ -24,6 +24,7 @@ infrastructure/
   certificates/           # the listener certificates, synced from Key Vault
   external-dns/           # external-dns, publishing the listener hostnames in Azure DNS and
                           # Azure Private DNS
+  flux-webhook/           # Flux's GitHub webhook receiver, on a public Gateway
 tenants/
   example/                # the `example` team: olljanat-ai/aks-fluxcd-example, synced into `example`
 ```
@@ -35,7 +36,7 @@ tenants/
   controllers to be ready, so configuration that needs their CRDs can follow it with
   `dependsOn: [{ name: infra-controllers }]`.
 - `infrastructure/configs/` follows `infra-controllers`, and `tenants/` and
-  `infrastructure/certificates/` follow `infra-configs`. `infrastructure/traefik/` and
+  `infrastructure/certificates/` follow `infra-configs`, and `infrastructure/flux-webhook/` both. `infrastructure/traefik/` and
   `infrastructure/external-dns/` follow nothing. Nothing waits for Traefik, the certificates or
   external-dns, so a vault or a zone that is not set up yet holds back nothing but the Gateway's
   certificates and hostnames themselves.
@@ -48,7 +49,7 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | Controller | Namespace | Chart |
 | --- | --- | --- |
 | External Secrets Operator | `external-secrets` | `external-secrets` 2.12.x from https://charts.external-secrets.io |
-| external-dns | `external-dns` | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/, twice: `external-dns` (public zone) and `external-dns-internal` (private zone) |
+| external-dns | `external-dns` | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/, three times: `external-dns` (public zone), `external-dns-internal` (private zone) and `external-dns-public` (the webhook's public address) |
 | Traefik Proxy | `traefik` | `traefik` 39.0.x (Traefik v3.6) from https://traefik.github.io/charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
@@ -77,6 +78,7 @@ account on every read, so an `ExternalSecret` in a namespace reads that namespac
 | Namespace | Key Vault secret | Synced into |
 | --- | --- | --- |
 | `ingress-gateway` | `ingress-gateway--<gateway_certificate_name>` - a wildcard certificate for both zones | `gateway-tls`, the certificate of every HTTPS listener |
+| `flux-system` | `flux-system--github-webhook-token` - created by aks-terraform | `github-webhook-token`, the token Flux's GitHub Receiver checks deliveries against |
 | `example` | `example--aks-fluxcd-example-git` - a read-only token for the team's repository | `aks-fluxcd-example-git`, for Flux |
 | `example` | `example--ghcr-pull` - a Docker config JSON | `ghcr-pull`, for pulling the team's images |
 
@@ -173,6 +175,7 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | `example_internal_hostname` | this repository | The hostname of the `https-example-internal` listener, the same way in the private zone. |
 | `traefik_hostname` | this repository | The hostname of Traefik's dashboard (`https-traefik`). |
 | `traefik_internal_hostname` | this repository | The dashboard's hostname in the private zone (`https-traefik-internal`). |
+| `flux_webhook_hostname` | this repository | The public hostname of Flux's webhook receiver, one level below `dns_zone_name` - see [Webhook](#webhook). |
 
 The ones aks-terraform sets are Azure facts and are never written here: it gives them to the
 cluster's Flux configuration as post-build variables of the `platform` Kustomization, which fills
@@ -183,6 +186,36 @@ A new hostname goes live in three steps: put a certificate covering it in the va
 for it to `infrastructure/configs/gateway/gateway.yaml` with an `ExternalSecret` beside the others,
 and set both names in `cluster-settings.yaml`. external-dns publishes the record once a route
 attaches to the listener.
+
+### Webhook
+
+A push to this repository reaches the cluster at once rather than at the next poll: GitHub calls
+Flux's webhook receiver, which reconciles the `platform` GitRepository (`infrastructure/flux-webhook`).
+It is the one thing the cluster publishes on the internet:
+
+- Traefik has an entry point of its own for it, `webhook` (9443), on a second, **public**
+  `LoadBalancer` Service, `traefik-public`, which carries that entry point and no other. The
+  internal Gateway's listeners are all on 8000 and 8443, which only the internal load balancer
+  carries, so no internal hostname answers from the internet whatever Host or SNI a client sends.
+- The `public` Gateway, in `flux-system`, listens there for `flux_webhook_hostname` with the
+  wildcard certificate (a ReferenceGrant in `ingress-gateway` lets it read `gateway-tls`), and its
+  one HTTPRoute sends `/hook/` to notification-controller's `webhook-receiver`.
+- `external-dns-public` publishes `flux_webhook_hostname` to the public IP of `traefik-public`, in the
+  public zone. It reads Services in `traefik` only, so no team can publish a public name.
+- The `github` Receiver checks each delivery's signature against the token in Key Vault,
+  `flux-system--github-webhook-token`, which aks-terraform creates (`flux_github_webhook`) and External
+  Secrets syncs into `flux-system/github-webhook-token`.
+
+The repository's webhook - Settings, Webhooks, Add webhook - is set once:
+
+| | |
+| --- | --- |
+| Payload URL | `https://<flux_webhook_hostname><status.webhookPath of the Receiver>` - the path is printed by aks-terraform's Cluster status workflow (`kubectl get receiver -n flux-system github -o jsonpath='{.status.webhookPath}'`) |
+| Content type | `application/json` |
+| Secret | the token: `az keyvault secret show --vault-name <key vault> --name flux-system--github-webhook-token --query value -o tsv` |
+| Events | Just the push event |
+
+Without the webhook, or while it is down, Flux still polls the repository.
 
 [ilb]: https://learn.microsoft.com/azure/aks/internal-lb
 [gatewayapi]: https://gateway-api.sigs.k8s.io/

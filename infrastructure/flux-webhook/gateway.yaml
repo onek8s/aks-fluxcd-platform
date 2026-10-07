@@ -1,0 +1,70 @@
+# The public side: a Gateway of its own, in flux-system, listening on Traefik's `webhook` entry point
+# (9443) - which only the public load balancer carries, see infrastructure/traefik. It is not in
+# ingress-gateway, so the external-dns releases that publish the internal Gateway's hostnames - they
+# only look there - leave it alone: its status carries the internal address Traefik gives every
+# Gateway, and ${flux_webhook_hostname} is published to the public IP instead, by
+# infrastructure/external-dns/release-public.yaml.
+#
+# It serves the platform's wildcard certificate, read from ingress-gateway with the ReferenceGrant
+# below.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public
+  namespace: flux-system
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: https-webhook
+      protocol: HTTPS
+      port: 9443
+      hostname: ${flux_webhook_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            namespace: ingress-gateway
+            name: gateway-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Same
+---
+# Lets the Gateway above - and nothing else outside ingress-gateway - serve the wildcard certificate.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: flux-webhook-certificate
+  namespace: ingress-gateway
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: flux-system
+  to:
+    - group: ""
+      kind: Secret
+      name: gateway-tls
+---
+# /hook/ only, to notification-controller's webhook receiver. The Flux extension's `allow-webhooks`
+# NetworkPolicy already lets Traefik reach it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: flux-webhook
+  namespace: flux-system
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+      sectionName: https-webhook
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /hook/
+      backendRefs:
+        - name: webhook-receiver
+          port: 80

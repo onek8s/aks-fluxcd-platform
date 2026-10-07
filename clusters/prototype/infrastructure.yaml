@@ -44,9 +44,9 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# Traefik Proxy, which serves the internal Gateway. On its own, with nothing waiting for it and
-# waiting for nothing: it needs no CRDs but the Gateway API's, which AKS manages, and no values of
-# this cluster's.
+# Traefik Proxy, which serves the internal Gateway and the public one of flux-webhook. On its own,
+# with nothing waiting for it and waiting for nothing: it needs no CRDs but the Gateway API's, which
+# AKS manages. Of this cluster's values it takes the webhook's hostname, for its public Service.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -62,6 +62,10 @@ spec:
   path: ./infrastructure/traefik
   prune: true
   wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
 ---
 # external-dns, on its own: nothing waits for it, so a zone that is not set up yet - or an outage of
 # Azure DNS - keeps the hostnames from being published and holds back nothing else.
@@ -102,6 +106,33 @@ spec:
     kind: GitRepository
     name: platform
   path: ./infrastructure/certificates
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# Flux's webhook receiver, published on the internet so a GitHub push reconciles the platform at once
+# (see infrastructure/flux-webhook). After External Secrets Operator is ready, for its SecretStore,
+# and after `infra-configs` has created ingress-gateway, for the ReferenceGrant there. Nothing waits
+# for it: without it, Flux still polls.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-webhook
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+    - name: infra-configs
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/flux-webhook
   prune: true
   wait: true
   postBuild:
