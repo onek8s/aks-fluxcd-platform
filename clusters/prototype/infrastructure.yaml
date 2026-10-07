@@ -4,13 +4,18 @@
 #
 # `platform` is the GitRepository the AKS Flux extension creates for the cluster's Flux
 # configuration, which Terraform names `platform` and points at this directory.
+#
+# Each runs every 10 minutes, not only when the repository changes: cluster-settings.yaml is applied by
+# `platform`, the Kustomization above these, and one of these can build a new commit before
+# `platform` has applied that commit's settings - substituting a setting just added as nothing. The
+# next run puts it right; at 10 minutes, soon.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: infra-controllers
   namespace: flux-system
 spec:
-  interval: 1h
+  interval: 10m
   retryInterval: 1m
   timeout: 5m
   sourceRef:
@@ -30,7 +35,7 @@ metadata:
 spec:
   dependsOn:
     - name: infra-controllers
-  interval: 1h
+  interval: 10m
   retryInterval: 1m
   timeout: 5m
   sourceRef:
@@ -53,7 +58,7 @@ metadata:
   name: traefik
   namespace: flux-system
 spec:
-  interval: 1h
+  interval: 10m
   retryInterval: 1m
   timeout: 10m
   sourceRef:
@@ -75,7 +80,7 @@ metadata:
   name: external-dns
   namespace: flux-system
 spec:
-  interval: 1h
+  interval: 10m
   retryInterval: 1m
   timeout: 5m
   sourceRef:
@@ -99,7 +104,7 @@ metadata:
 spec:
   dependsOn:
     - name: infra-configs
-  interval: 1h
+  interval: 10m
   retryInterval: 1m
   timeout: 5m
   sourceRef:
@@ -126,7 +131,7 @@ spec:
   dependsOn:
     - name: infra-controllers
     - name: infra-configs
-  interval: 1h
+  interval: 10m
   retryInterval: 1m
   timeout: 5m
   sourceRef:
