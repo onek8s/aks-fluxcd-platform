@@ -28,6 +28,7 @@ data:
   # Set here. The hostname the `example` team is published on, which has to be in dns_zone_name
   # (and not its apex), and the Key Vault certificate - covering it - that its listener serves. The
   # certificate is `ingress-gateway--<this name>` in the vault: ingress-gateway's share of it.
-  # TODO: replace with the real certificate name.
+  # aks-terraform's Renew Certificate workflow issues it from Let's Encrypt and renews it there,
+  # under this name for this hostname; change the two together, there and here.
   example_hostname: "hello.onek8s.lol"
   example_certificate_name: "hello-example"
