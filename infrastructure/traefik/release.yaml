@@ -14,6 +14,14 @@
 #
 # The version follows patch releases on its own; a new minor version is a change to this file. The
 # chart picks the Traefik Proxy image version it was released with.
+#
+# Traefik's minor version is tied to the Gateway API CRDs AKS installs, which follow the cluster's
+# Kubernetes version (Gateway API v1.4.1 on 1.35, v1.5.1 on 1.36). At startup Traefik waits for a
+# watch on every Gateway API kind it serves, and it does not serve a Gateway - no status, no address,
+# so no DNS records either - until all of them sync. Traefik v3.6 (chart 39.0.x) watches the kinds of
+# Gateway API v1.4 - BackendTLSPolicy v1 among them - and so needs Kubernetes 1.35 or later; v3.7
+# (chart 40 and later) also watches TLSRoute v1, which only v1.5 has, and needs 1.36. Move to v3.7
+# once every cluster is on 1.36.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -29,7 +37,7 @@ spec:
   chart:
     spec:
       chart: traefik
-      version: "41.6.x"
+      version: "39.0.x"
       sourceRef:
         kind: HelmRepository
         name: traefik
@@ -48,11 +56,11 @@ spec:
         enabled: false
       kubernetesGateway:
         enabled: true
-        # Only the platform's own routes may name Traefik's internal services - the dashboard's
-        # `api@internal`, see infrastructure/configs/gateway/dashboard.yaml. Left unset, a route in
-        # any namespace could.
-        crossProviderNamespaces:
-          - ingress-gateway
+        # A route in any namespace may name Traefik's internal services - the dashboard's
+        # `api@internal`, see infrastructure/configs/gateway/dashboard.yaml. Restricting that to
+        # ingress-gateway (`crossProviderNamespaces`) takes Traefik v3.7.1; until then a team could
+        # serve the read-only dashboard on its own listener, which shows nothing the platform's
+        # dashboard listeners do not already show to the same network.
       kubernetesIngress:
         enabled: false
     # The dashboard, on by default, said here because a route depends on it. It is served on the
