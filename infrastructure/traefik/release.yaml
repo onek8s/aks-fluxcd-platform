@@ -91,8 +91,18 @@ spec:
         # Keeps the client's address, rather than the node's, on the requests Traefik sees - and only
         # sends traffic to the nodes a Traefik pod runs on.
         externalTrafficPolicy: Local
+    # One replica: the prototype cluster is a single small node, where a second proxy buys no
+    # availability and takes room the rest of the platform needs. An update stops the old pod before
+    # it starts the new one (the chart's default surges a third pod first), so it never needs room
+    # for an extra pod - at the price of a few seconds without a proxy. Raise replicas, and put the
+    # surge back, on a cluster with nodes to spare.
     deployment:
-      replicas: 2
+      replicas: 1
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 0
     podDisruptionBudget:
       enabled: true
       maxUnavailable: 1
@@ -108,7 +118,7 @@ spec:
     # capped so a leak is a restart rather than pressure on the node.
     resources:
       requests:
-        cpu: 50m
-        memory: 128Mi
+        cpu: 25m
+        memory: 64Mi
       limits:
         memory: 512Mi
