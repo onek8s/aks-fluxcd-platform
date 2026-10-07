@@ -37,18 +37,21 @@ data:
   # change the two together, there and here.
   gateway_certificate_name: "wildcard"
 
-  # Set here. The hostname the `example` team is published on, which has to be one level below
-  # dns_zone_name - the wildcard covers no deeper - and the same in internal_dns_zone_name.
+  # Set here. The hostname the `example` team is published on, on the internet, which has to be one
+  # level below dns_zone_name - the wildcard covers no deeper - and the same in
+  # internal_dns_zone_name, inside the network.
   example_hostname: "hello.onek8s.lol"
   example_internal_hostname: "hello.internal.onek8s.lol"
 
   # Set here. The hostnames Traefik's dashboard is published on, in the two zones the same way. The
-  # dashboard asks for no authentication: anyone who reaches the Gateway, which is only reachable
-  # from inside the network, can read it.
+  # dashboard asks for no authentication: on the public hostname anyone on the internet can read it -
+  # a prototype's choice.
   traefik_hostname: "traefik.onek8s.lol"
   traefik_internal_hostname: "traefik.internal.onek8s.lol"
 
+  # Set here. The name of the cluster's public IP - Traefik's `traefik-public` Service - in
+  # dns_zone_name: an A record that every public hostname above and below is a CNAME to.
+  public_hostname: "public.onek8s.lol"
   # Set here. The hostname Flux's webhook receiver is published on, in dns_zone_name (one level below
-  # it, for the wildcard certificate) - on the internet, to the public IP of Traefik's
-  # `traefik-public` Service. GitHub's webhook for the platform repository points at it.
+  # it, for the wildcard certificate). GitHub's webhook for the platform repository points at it.
   flux_webhook_hostname: "flux-webhook.onek8s.lol"

@@ -1,7 +1,8 @@
-# Traefik's dashboard, on the `https-traefik` and `https-traefik-internal` listeners - the public
-# zone's hostname and the private zone's - with no authentication: anyone who can reach
-# the Gateway - from inside the network only - can read it. It is read-only; the dashboard changes
-# nothing in Traefik.
+# Traefik's dashboard, on the `https-traefik` listener of the public Gateway - on the internet - and
+# `https-traefik-internal` of the internal one, with no authentication: anyone can read it. This is
+# a prototype's choice; the dashboard is read-only and changes nothing in Traefik, but it shows every
+# router, service and backend the cluster has. Put it behind authentication, or take it off the
+# public Gateway, before anything here matters.
 #
 # The dashboard and the API it reads are Traefik's internal service `api@internal` (the chart's
 # `api.dashboard`, on by default), which the Gateway API provider lets a route name as a
@@ -16,7 +17,7 @@ spec:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: internal
+      name: public
       sectionName: https-traefik
     - group: gateway.networking.k8s.io
       kind: Gateway

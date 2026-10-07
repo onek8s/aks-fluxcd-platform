@@ -1,6 +1,7 @@
 # external-dns a third time, for the one public address the cluster has: Traefik's `traefik-public`
-# Service (infrastructure/traefik), whose ${flux_webhook_hostname} annotation it publishes as an A
-# record to the Service's public IP in the public zone. It reads Services in `traefik` and nowhere
+# Service (infrastructure/traefik), whose ${public_hostname} annotation it publishes as an A record
+# to the Service's public IP in the public zone. The public Gateway's hostnames are CNAMEs to it,
+# kept by release.yaml. It reads Services in `traefik` and nowhere
 # else: a team that annotates a Service of its own publishes nothing.
 #
 # It is not release.yaml with a second source, because a source there would read every namespace's

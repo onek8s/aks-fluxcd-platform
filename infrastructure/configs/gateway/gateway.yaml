@@ -1,23 +1,34 @@
-# The cluster's entry point: a Gateway of Traefik Proxy (`traefik` - see
-# infrastructure/traefik), reached through an Azure internal load balancer. Its address is the private
-# IP AKS gives the load balancer in the cluster's network, which Traefik copies into the Gateway's
-# status; external-dns publishes each hostname below as an A record to it - in the public zone or the
-# private one, whichever the hostname is in - and every listener serves one wildcard certificate for
-# both zones, synced from Key Vault (infrastructure/certificates). Nothing outside the network can
-# reach it.
+# The cluster's entry points: two Gateways of Traefik Proxy (`traefik` - see infrastructure/traefik),
+# one for each load balancer in front of it.
 #
-# The platform owns everything here: which hostnames the cluster answers to, which team may attach
-# routes to each one, and the TLS certificate they serve. A team publishes an app by attaching an
-# HTTPRoute to the listener it is given, naming neither hostname nor certificate.
+#   internal   The private zone's hostnames, on Traefik's `web` and `websecure` entry points (8000,
+#              8443), which only the Azure internal load balancer carries: reachable from inside the
+#              network only. external-dns-internal publishes them in the private zone as A records to
+#              the Gateway's address - the internal load balancer's private IP, which Traefik copies
+#              into its status.
+#   public     The public zone's hostnames, on `web-pub` and `websecure-pub` (9000, 9443),
+#              which only the public load balancer (`traefik-public`) carries: reachable from the
+#              internet. external-dns publishes them in the public zone as CNAMEs to
+#              ${public_hostname} - its target annotation - which external-dns-public keeps as an A
+#              record to the public IP. (Traefik gives every Gateway the internal address in its
+#              status, so the annotation is what points the public names the right way.)
 #
-# The listener ports are Traefik's entry points inside the pod - 8000 for `web`, 8443 for
-# `websecure` - which Traefik requires a listener to name; the load balancer serves them on 80 and
-# 443.
+# An entry point belongs to one load balancer, so no listener of one Gateway can be reached through
+# the other's - whatever Host or SNI a client sends. Every HTTPS listener serves the one wildcard
+# certificate for both zones, synced from Key Vault (infrastructure/certificates).
 #
-#   ${example_hostname}            The hostname the `example` team is published on.
-#   ${example_internal_hostname}   The same, in the private zone.
-#   ${traefik_hostname}            Traefik's own dashboard (dashboard.yaml).
+# The platform owns everything here: which hostnames the cluster answers to, on which side, which
+# team may attach routes to each one, and the TLS certificate they serve. A team publishes an app by
+# attaching an HTTPRoute to the listeners it is given, naming neither hostname nor certificate.
+#
+# Traefik requires a listener's port to be one of its entry points inside the pod; the load
+# balancers serve them on 80 and 443.
+#
+#   ${example_hostname}            The `example` team, public.
+#   ${example_internal_hostname}   The `example` team, in the private zone.
+#   ${traefik_hostname}            Traefik's own dashboard (dashboard.yaml), public.
 #   ${traefik_internal_hostname}   The same, in the private zone.
+#   ${flux_webhook_hostname}       Flux's GitHub webhook receiver (infrastructure/flux-webhook).
 #
 # Set per cluster in clusters/<cluster>/cluster-settings.yaml.
 apiVersion: gateway.networking.k8s.io/v1
@@ -37,24 +48,6 @@ spec:
         namespaces:
           from: Same
     # One HTTPS listener per published hostname, each open to the routes of one team namespace.
-    - name: https-example
-      protocol: HTTPS
-      port: 8443
-      hostname: ${example_hostname}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: gateway-tls
-      allowedRoutes:
-        kinds:
-          - kind: HTTPRoute
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              kubernetes.io/metadata.name: example
-    # The same team, on its hostname in the private zone.
     - name: https-example-internal
       protocol: HTTPS
       port: 8443
@@ -73,21 +66,6 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: example
     # Traefik's dashboard, routed by dashboard.yaml. Only routes of this namespace attach.
-    - name: https-traefik
-      protocol: HTTPS
-      port: 8443
-      hostname: ${traefik_hostname}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: gateway-tls
-      allowedRoutes:
-        kinds:
-          - kind: HTTPRoute
-        namespaces:
-          from: Same
-    # The dashboard on its hostname in the private zone.
     - name: https-traefik-internal
       protocol: HTTPS
       port: 8443
@@ -102,3 +80,69 @@ spec:
           - kind: HTTPRoute
         namespaces:
           from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public
+  namespace: ingress-gateway
+  annotations:
+    external-dns.kubernetes.io/target: ${public_hostname}
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 9000
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https-example
+      protocol: HTTPS
+      port: 9443
+      hostname: ${example_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: gateway-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: example
+    - name: https-traefik
+      protocol: HTTPS
+      port: 9443
+      hostname: ${traefik_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: gateway-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Same
+    # Flux's webhook receiver; its route lives in flux-system, next to the receiver.
+    - name: https-flux-webhook
+      protocol: HTTPS
+      port: 9443
+      hostname: ${flux_webhook_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: gateway-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: flux-system
