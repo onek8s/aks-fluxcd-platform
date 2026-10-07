@@ -20,8 +20,8 @@ spec:
   prune: true
   wait: true
 ---
-# The configuration built on the controllers - the Let's Encrypt issuers, the Application Gateway for
-# Containers load balancer and the public Gateway - with this cluster's own values filled in from
+# The configuration built on the controllers - the Application Gateway for Containers load balancer,
+# the public Gateway and its certificates - with this cluster's own values filled in from
 # cluster-settings.yaml.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -38,6 +38,52 @@ spec:
     kind: GitRepository
     name: platform
   path: ./infrastructure/configs
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# external-dns, on its own: nothing waits for it, so a zone that is not set up yet - or an outage of
+# Azure DNS - keeps the hostnames from being published and holds back nothing else.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: external-dns
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/external-dns
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# The listener certificates, synced from Key Vault once `infra-configs` has created ingress-gateway
+# and External Secrets Operator is ready. Nothing waits for them either.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-certificates
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-configs
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/certificates
   prune: true
   wait: true
   postBuild:

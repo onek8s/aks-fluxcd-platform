@@ -1,10 +1,8 @@
-# Where the public Gateway and the Application Gateway for Containers load balancer behind it are
-# defined. The proxies themselves are an Azure resource, not pods; what does run here are the HTTP-01
-# solver pods cert-manager starts for the Gateway's certificates.
+# Where the public Gateway, the Application Gateway for Containers load balancer behind it and the
+# Secrets holding its listener certificates live. The proxies are an Azure resource, not pods, so
+# nothing runs here.
 #
-# Held to the restricted Pod Security Standard, like every namespace the cluster manages itself. The
-# solver pods run non-root, with no privilege escalation, every capability dropped and the
-# RuntimeDefault seccomp profile, so they meet it as they are.
+# Held to the restricted Pod Security Standard, like every namespace the cluster manages itself.
 apiVersion: v1
 kind: Namespace
 metadata:
