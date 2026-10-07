@@ -20,7 +20,7 @@ infrastructure/
   configs/                # configuration that needs the controllers' CRDs
     gateway-api-rbac.yaml # lets the namespace `admin`/`edit` roles manage HTTPRoutes
     gateway/              # the internal Gateway, the HTTP to HTTPS redirect
-  traefik/                # Traefik Hub API Gateway, behind an Azure internal load balancer
+  traefik/                # Traefik Proxy, behind an Azure internal load balancer
   certificates/           # the listener certificates, synced from Key Vault
   external-dns/           # external-dns, publishing the listener hostnames in Azure DNS
 tenants/
@@ -36,8 +36,8 @@ tenants/
 - `infrastructure/configs/` follows `infra-controllers`, and `tenants/` and
   `infrastructure/certificates/` follow `infra-configs`. `infrastructure/traefik/` and
   `infrastructure/external-dns/` follow nothing. Nothing waits for Traefik, the certificates or
-  external-dns, so a license, a vault or a zone that is not set up yet holds back nothing but the
-  Gateway and its hostnames themselves.
+  external-dns, so a vault or a zone that is not set up yet holds back nothing but the Gateway's
+  certificates and hostnames themselves.
 
 The Kustomizations use `sourceRef: { kind: GitRepository, name: platform }` - the GitRepository the
 AKS Flux extension creates for the Flux configuration Terraform names `platform`.
@@ -48,7 +48,7 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | --- | --- | --- |
 | External Secrets Operator | `external-secrets` | `external-secrets` 2.12.x from https://charts.external-secrets.io |
 | external-dns | `external-dns` | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/ |
-| Traefik Hub API Gateway | `traefik` | `traefik` 41.6.x from https://traefik.github.io/charts |
+| Traefik Proxy | `traefik` | `traefik` 41.6.x from https://traefik.github.io/charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
 in the table through `targetNamespace` and `storageNamespace` (the Helm release Secrets are kept
@@ -76,7 +76,6 @@ account on every read, so an `ExternalSecret` in a namespace reads that namespac
 | Namespace | Key Vault secret | Synced into |
 | --- | --- | --- |
 | `ingress-gateway` | `ingress-gateway--<example_certificate_name>` - a certificate | `https-example-tls`, the listener's certificate |
-| `traefik` | `traefik--hub-license` | `traefik-hub-license`, key `token` |
 | `example` | `example--aks-fluxcd-example-git` - a read-only token for the team's repository | `aks-fluxcd-example-git`, for Flux |
 | `example` | `example--ghcr-pull` - a Docker config JSON | `ghcr-pull`, for pulling the team's images |
 
@@ -87,10 +86,12 @@ The names of every secret can be listed by every identity with a share - only va
 ## Publishing applications
 
 Applications are published through the [Kubernetes Gateway API][gatewayapi] on
-[Traefik Hub API Gateway][traefikhub], reached through an [Azure internal load balancer][ilb]: the
+[Traefik Proxy][traefik], reached through an [Azure internal load balancer][ilb]: the
 Gateway has a private address in the cluster's network and nothing outside the network can reach it.
 aks-terraform turns on the managed Gateway API CRDs; Traefik (`infrastructure/traefik`) provides the
-`traefik` GatewayClass and runs the proxies as pods in the `traefik` namespace.
+`traefik` GatewayClass and runs the proxies as pods in the `traefik` namespace. Only its Kubernetes
+Gateway API provider is on: the chart's own CRDs (IngressRoute, Middleware and the rest of Traefik's,
+and Traefik Hub's) are not installed, and nothing here uses them.
 
 The split between the platform and the teams is the [Gateway API role model][roles]:
 
@@ -118,18 +119,6 @@ The split between the platform and the teams is the [Gateway API role model][rol
 
   Traefik requires a listener's port to be one of its entry points inside the pod - `8000` (`web`)
   and `8443` (`websecure`) - which the load balancer serves on 80 and 443.
-
-### Traefik Hub license
-
-Traefik Hub API Gateway needs a license token, which Git is no place for. It is put in the vault once
-per cluster, by an admin, and synced into the `traefik-hub-license` Secret:
-
-```sh
-az keyvault secret set --vault-name <key vault> --name traefik--hub-license --value <license token>
-```
-
-Until it is there the Traefik pods do not start and the `traefik` Kustomization stays not-ready;
-nothing else waits for it.
 
 ### Certificates and DNS
 
@@ -177,7 +166,7 @@ attaches to the listener.
 [ilb]: https://learn.microsoft.com/azure/aks/internal-lb
 [gatewayapi]: https://gateway-api.sigs.k8s.io/
 [roles]: https://gateway-api.sigs.k8s.io/concepts/roles-and-personas/
-[traefikhub]: https://doc.traefik.io/traefik-hub/api-gateway/intro
+[traefik]: https://doc.traefik.io/traefik/reference/install-configuration/providers/kubernetes/kubernetes-gateway/
 
 ## Tenants
 

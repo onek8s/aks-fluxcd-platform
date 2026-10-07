@@ -1,22 +1,19 @@
-# Traefik Hub API Gateway: Traefik Proxy with the API Gateway features of Traefik Hub turned on by a
-# license. It serves the Kubernetes Gateway API - the `traefik` GatewayClass, created by the chart -
-# and nothing else: no IngressClass, no Ingress provider, no Gateway of the chart's own. The Gateway
-# and its listeners are the platform's, in infrastructure/configs/gateway.
+# Traefik Proxy, serving the Kubernetes Gateway API - the `traefik` GatewayClass, created by the
+# chart - and nothing else: no IngressClass, no Ingress provider, no IngressRoute (Kubernetes CRD)
+# provider, no Gateway of the chart's own. The Gateway and its listeners are the platform's, in
+# infrastructure/configs/gateway.
 #
 # It is reached through an Azure internal load balancer: the Service is of type LoadBalancer with the
 # `azure-load-balancer-internal` annotation, so AKS gives it a private address in the cluster's
 # network rather than a public one. Traefik copies that address into the status of the Gateways it
 # serves, and external-dns publishes the listener hostnames as A records to it.
 #
-# The license is the `token` key of the `traefik-hub-license` Secret in this namespace, synced from
-# Key Vault by license.yaml. Without it the pods do not start, which is why this is a Flux
-# Kustomization of its own that nothing waits for.
-#
-# The chart installs the Traefik and Traefik Hub CRDs from its crds/ directory. The Gateway API CRDs
-# are not among them: AKS manages those (aks-terraform), and nothing else may bring its own.
+# No CRDs are installed: the chart's own - Traefik's and Traefik Hub's, from its crds/ directory - are
+# skipped, since nothing here uses them and the Kubernetes CRD provider is off. The Gateway API CRDs
+# are not among them either: AKS manages those (aks-terraform), and nothing else may bring its own.
 #
 # The version follows patch releases on its own; a new minor version is a change to this file. The
-# chart picks the Traefik Hub image version it was released with.
+# chart picks the Traefik Proxy image version it was released with.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -38,17 +35,17 @@ spec:
         name: traefik
       interval: 12h
   install:
-    crds: Create
+    crds: Skip
     remediation:
       retries: 3
   upgrade:
-    crds: CreateReplace
+    crds: Skip
     remediation:
       retries: 3
   values:
-    hub:
-      token: traefik-hub-license
     providers:
+      kubernetesCRD:
+        enabled: false
       kubernetesGateway:
         enabled: true
       kubernetesIngress:

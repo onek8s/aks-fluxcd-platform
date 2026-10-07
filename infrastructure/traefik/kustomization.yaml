@@ -1,11 +1,9 @@
-# Traefik Hub API Gateway, the controller behind the `traefik` GatewayClass that the `internal`
+# Traefik Proxy, the controller behind the `traefik` GatewayClass that the `internal`
 # Gateway in ingress-gateway (infrastructure/configs/gateway) is served by. Reconciled as its own
 # Flux Kustomization - see clusters/<cluster>/infrastructure.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - key-vault.yaml
-  - license.yaml
   - repository.yaml
   - release.yaml

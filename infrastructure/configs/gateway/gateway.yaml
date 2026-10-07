@@ -1,4 +1,4 @@
-# The cluster's entry point: a Gateway of Traefik Hub API Gateway (`traefik` - see
+# The cluster's entry point: a Gateway of Traefik Proxy (`traefik` - see
 # infrastructure/traefik), reached through an Azure internal load balancer. Its address is the private
 # IP AKS gives the load balancer in the cluster's network, which Traefik copies into the Gateway's
 # status; external-dns publishes each hostname below as an A record to it, and each listener's
