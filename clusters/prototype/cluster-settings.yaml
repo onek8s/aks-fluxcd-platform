@@ -46,4 +46,6 @@ data:
   # listener serves. The dashboard asks for no authentication: anyone who reaches the Gateway, which
   # is only reachable from inside the network, can read it.
   traefik_hostname: "traefik.onek8s.lol"
+  # The same, in internal_dns_zone_name. Served the same certificate, which does not name it.
+  traefik_internal_hostname: "traefik.internal.onek8s.lol"
   traefik_certificate_name: "traefik-dashboard"

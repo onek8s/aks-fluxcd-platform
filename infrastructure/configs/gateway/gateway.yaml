@@ -16,6 +16,7 @@
 #   ${example_hostname}            The hostname the `example` team is published on.
 #   ${example_internal_hostname}   The same, in the private zone.
 #   ${traefik_hostname}            Traefik's own dashboard (dashboard.yaml).
+#   ${traefik_internal_hostname}   The same, in the private zone.
 #
 # Set per cluster in clusters/<cluster>/cluster-settings.yaml.
 apiVersion: gateway.networking.k8s.io/v1
@@ -76,6 +77,21 @@ spec:
       protocol: HTTPS
       port: 8443
       hostname: ${traefik_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: https-traefik-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Same
+    # The dashboard on its hostname in the private zone, with the same certificate.
+    - name: https-traefik-internal
+      protocol: HTTPS
+      port: 8443
+      hostname: ${traefik_internal_hostname}
       tls:
         mode: Terminate
         certificateRefs:
