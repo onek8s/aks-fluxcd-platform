@@ -23,6 +23,11 @@ data:
   dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
   dns_zone_subscription_id: "${dns_zone_subscription_id}"
   dns_identity_client_id: "${dns_identity_client_id}"
+  # The Azure Private DNS zone the listener hostnames are also published in, written by the same
+  # identity. Its names resolve only inside the networks it is linked to.
+  internal_dns_zone_name: "${internal_dns_zone_name}"
+  internal_dns_zone_resource_group_name: "${internal_dns_zone_resource_group_name}"
+  internal_dns_zone_subscription_id: "${internal_dns_zone_subscription_id}"
 
   # Set here. The hostname the `example` team is published on, which has to be in dns_zone_name
   # (and not its apex), and the Key Vault certificate - covering it - that its listener serves. The
@@ -31,3 +36,14 @@ data:
   # under this name for this hostname; change the two together, there and here.
   example_hostname: "hello.onek8s.lol"
   example_certificate_name: "hello-example"
+  # The hostname the `example` team is published on privately, which has to be in
+  # internal_dns_zone_name (and not its apex). Its listener serves the same certificate as
+  # example_hostname's, which does not cover it: clients see a name mismatch there.
+  example_internal_hostname: "hello.internal.onek8s.lol"
+
+  # Set here. The hostname Traefik's dashboard is published on, in dns_zone_name, and the Key Vault
+  # certificate - `ingress-gateway--<this name>`, issued and renewed by the same workflow - that its
+  # listener serves. The dashboard asks for no authentication: anyone who reaches the Gateway, which
+  # is only reachable from inside the network, can read it.
+  traefik_hostname: "traefik.onek8s.lol"
+  traefik_certificate_name: "traefik-dashboard"

@@ -10,3 +10,4 @@ kind: Kustomization
 resources:
   - secret-store.yaml
   - https-example-tls.yaml
+  - https-traefik-tls.yaml

@@ -1,4 +1,5 @@
-# external-dns: publishes the hostnames of the internal Gateway in the cluster's Azure DNS zone. For
+# external-dns: publishes the hostnames of the internal Gateway in the cluster's public Azure DNS zone
+# - release-internal.yaml does the same for the private one. For
 # every HTTPRoute attached to a Gateway in ingress-gateway it keeps an A record - the route's hostname,
 # or the listener's when the route names none - pointing at the Gateway's address, the private IP of
 # Traefik's internal load balancer, and a TXT record beside it marking the record as this cluster's.
@@ -45,11 +46,14 @@ spec:
       name: azure
     sources:
       - gateway-httproute
-    # Only the platform's Gateways, and only the cluster's own zone.
+    # Only the platform's Gateways, and only the cluster's own zone - less the private zone, which
+    # is a subdomain of it and is release-internal.yaml's.
     extraArgs:
       - --gateway-namespace=ingress-gateway
     domainFilters:
       - "${dns_zone_name}"
+    excludeDomains:
+      - "${internal_dns_zone_name}"
     # Records it created and that are no longer wanted are deleted; records it did not create - no
     # TXT record with this owner beside them - are never touched.
     policy: sync
