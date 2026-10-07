@@ -7,9 +7,14 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: external-secrets
-  namespace: external-secrets
+  namespace: flux-system
 spec:
   interval: 1h
+  # The release lives in flux-system, where the AKS Flux extension's `flux-applier` service account
+  # holds the rights to install it, and is installed into `external-secrets` - see the README.
+  releaseName: external-secrets
+  targetNamespace: external-secrets
+  storageNamespace: external-secrets
   chart:
     spec:
       chart: external-secrets
