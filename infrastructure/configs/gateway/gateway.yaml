@@ -1,9 +1,9 @@
 # The cluster's entry point: a Gateway of Traefik Proxy (`traefik` - see
 # infrastructure/traefik), reached through an Azure internal load balancer. Its address is the private
 # IP AKS gives the load balancer in the cluster's network, which Traefik copies into the Gateway's
-# status; external-dns publishes each hostname below as an A record to it, and each listener's
-# certificate is synced from Key Vault (infrastructure/certificates). Nothing outside the network
-# can reach it.
+# status; external-dns publishes each hostname below as an A record to it - in the public zone or the
+# private one, whichever the hostname is in - and each listener's certificate is synced from Key
+# Vault (infrastructure/certificates). Nothing outside the network can reach it.
 #
 # The platform owns everything here: which hostnames the cluster answers to, which team may attach
 # routes to each one, and the TLS certificate of each. A team publishes an app by attaching an
@@ -13,7 +13,10 @@
 # `websecure` - which Traefik requires a listener to name; the load balancer serves them on 80 and
 # 443.
 #
-#   ${example_hostname}   The hostname the `example` team is published on.
+#   ${example_hostname}            The hostname the `example` team is published on.
+#   ${example_internal_hostname}   The same, in the private zone.
+#   ${traefik_hostname}            Traefik's own dashboard (dashboard.yaml).
+#   ${traefik_internal_hostname}   The same, in the private zone.
 #
 # Set per cluster in clusters/<cluster>/cluster-settings.yaml.
 apiVersion: gateway.networking.k8s.io/v1
@@ -50,3 +53,52 @@ spec:
           selector:
             matchLabels:
               kubernetes.io/metadata.name: example
+    # The same team, on its hostname in the private zone. It serves the public hostname's
+    # certificate, which does not name it.
+    - name: https-example-internal
+      protocol: HTTPS
+      port: 8443
+      hostname: ${example_internal_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: https-example-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: example
+    # Traefik's dashboard, routed by dashboard.yaml. Only routes of this namespace attach.
+    - name: https-traefik
+      protocol: HTTPS
+      port: 8443
+      hostname: ${traefik_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: https-traefik-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Same
+    # The dashboard on its hostname in the private zone, with the same certificate.
+    - name: https-traefik-internal
+      protocol: HTTPS
+      port: 8443
+      hostname: ${traefik_internal_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: https-traefik-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Same

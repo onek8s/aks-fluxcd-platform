@@ -1,0 +1,15 @@
+# The Azure Private DNS provider's configuration file - azure-config.yaml's, for the private zone of
+# release-internal.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-azure-internal
+  namespace: external-dns
+data:
+  azure.json: |
+    {
+      "tenantId": "${azure_tenant_id}",
+      "subscriptionId": "${internal_dns_zone_subscription_id}",
+      "resourceGroup": "${internal_dns_zone_resource_group_name}",
+      "useWorkloadIdentityExtension": true
+    }

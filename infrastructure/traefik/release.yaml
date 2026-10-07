@@ -48,8 +48,17 @@ spec:
         enabled: false
       kubernetesGateway:
         enabled: true
+        # Only the platform's own routes may name Traefik's internal services - the dashboard's
+        # `api@internal`, see infrastructure/configs/gateway/dashboard.yaml. Left unset, a route in
+        # any namespace could.
+        crossProviderNamespaces:
+          - ingress-gateway
       kubernetesIngress:
         enabled: false
+    # The dashboard, on by default, said here because a route depends on it. It is served on the
+    # Gateway (dashboard.yaml), never on an entry point of its own: the API stays secure.
+    api:
+      dashboard: true
     gatewayClass:
       enabled: true
       name: traefik
