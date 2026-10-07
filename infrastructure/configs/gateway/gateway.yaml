@@ -1,12 +1,17 @@
-# The cluster's public entry point: a frontend of the Application Gateway for Containers load balancer
-# in application-load-balancer.yaml, programmed by the ALB Controller add-on (`azure-alb-external` -
-# see aks-terraform). Its address is an Azure-generated FQDN, `<random>.fzNN.alb.azure.com`, in the
-# Gateway's status; external-dns publishes each hostname below as a CNAME to it, and each listener's
-# certificate is synced from Key Vault (infrastructure/certificates).
+# The cluster's entry point: a Gateway of Traefik Hub API Gateway (`traefik` - see
+# infrastructure/traefik), reached through an Azure internal load balancer. Its address is the private
+# IP AKS gives the load balancer in the cluster's network, which Traefik copies into the Gateway's
+# status; external-dns publishes each hostname below as an A record to it, and each listener's
+# certificate is synced from Key Vault (infrastructure/certificates). Nothing outside the network
+# can reach it.
 #
 # The platform owns everything here: which hostnames the cluster answers to, which team may attach
 # routes to each one, and the TLS certificate of each. A team publishes an app by attaching an
 # HTTPRoute to the listener it is given, naming neither hostname nor certificate.
+#
+# The listener ports are Traefik's entry points inside the pod - 8000 for `web`, 8443 for
+# `websecure` - which Traefik requires a listener to name; the load balancer serves them on 80 and
+# 443.
 #
 #   ${example_hostname}   The hostname the `example` team is published on.
 #
@@ -14,26 +19,23 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: public
+  name: internal
   namespace: ingress-gateway
-  annotations:
-    alb.networking.azure.io/alb-namespace: ingress-gateway
-    alb.networking.azure.io/alb-name: public
 spec:
-  gatewayClassName: azure-alb-external
+  gatewayClassName: traefik
   listeners:
     # Plain HTTP only redirects to HTTPS (https-redirect.yaml). Nothing outside this namespace
     # attaches.
     - name: http
       protocol: HTTP
-      port: 80
+      port: 8000
       allowedRoutes:
         namespaces:
           from: Same
     # One HTTPS listener per published hostname, each open to the routes of one team namespace.
     - name: https-example
       protocol: HTTPS
-      port: 443
+      port: 8443
       hostname: ${example_hostname}
       tls:
         mode: Terminate

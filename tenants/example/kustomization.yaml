@@ -1,4 +1,4 @@
-# The `example` team: olljanat-ai/aks-hello, applied into the `example` namespace and nowhere else.
+# The `example` team: olljanat-ai/aks-fluxcd-example, applied into the `example` namespace and nowhere else.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

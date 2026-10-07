@@ -12,10 +12,6 @@ metadata:
 data:
   cluster_name: "${cluster_name}"
   azure_tenant_id: "${azure_tenant_id}"
-  # The delegated subnet Application Gateway for Containers joins (snet-aks-alb), and its range:
-  # where it connects to the pods from.
-  agc_subnet_id: "${agc_subnet_id}"
-  agc_subnet_cidr: "${agc_subnet_cidr}"
   # The Key Vault the listener certificates are synced from, and the identity that reads it.
   tls_key_vault_url: "${tls_key_vault_url}"
   tls_identity_client_id: "${tls_identity_client_id}"
