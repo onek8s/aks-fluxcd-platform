@@ -111,12 +111,14 @@ spec:
         externalTrafficPolicy: Local
       # `traefik-public`: a public IP on the cluster's Azure load balancer, carrying the `webhook`
       # entry point only. external-dns publishes ${flux_webhook_hostname} to it in the public zone
-      # (its `service` source; the internal Service names no hostname and is left alone).
+      # (its `service` source; the internal Service names no hostname and is left alone). The
+      # annotation is under external-dns.kubernetes.io/: external-dns 0.23 no longer reads the old
+      # external-dns.alpha.kubernetes.io/ prefix.
       additionalServices:
         public:
           type: LoadBalancer
           annotations:
-            external-dns.alpha.kubernetes.io/hostname: ${flux_webhook_hostname}
+            external-dns.kubernetes.io/hostname: ${flux_webhook_hostname}
           spec:
             externalTrafficPolicy: Local
     # One replica: the prototype cluster is a single small node, where a second proxy buys no
