@@ -77,11 +77,11 @@ spec:
     # Listeners of the Gateway name these ports - 8000 and 8443, the entry points inside the pod - and
     # the load balancer takes the usual 80 and 443.
     #
-    # `webhook` (9443) is the one entry point reachable from the internet: it is on the `public`
-    # Service below and on no other, and only the `public` Gateway in flux-system listens on it
-    # (infrastructure/flux-webhook). Every listener of the internal Gateway is on 8000 or 8443, which
-    # the public Service does not carry - so no internal hostname answers from the internet, whatever
-    # Host or SNI a client sends.
+    # `web-pub` (9000) and `websecure-pub` (9443) are the entry points reachable from the
+    # internet: they are on the `public` Service below and on no other, and only the `public` Gateway
+    # listens on them (infrastructure/configs/gateway). Every listener of the internal Gateway is on
+    # 8000 or 8443, which the public Service does not carry - so no private-zone hostname answers from
+    # the internet, whatever Host or SNI a client sends.
     ports:
       web:
         port: 8000
@@ -89,7 +89,14 @@ spec:
       websecure:
         port: 8443
         exposedPort: 443
-      webhook:
+      web-pub:
+        port: 9000
+        exposedPort: 80
+        protocol: TCP
+        expose:
+          default: false
+          public: true
+      websecure-pub:
         port: 9443
         exposedPort: 443
         protocol: TCP
@@ -109,16 +116,17 @@ spec:
         # Keeps the client's address, rather than the node's, on the requests Traefik sees - and only
         # sends traffic to the nodes a Traefik pod runs on.
         externalTrafficPolicy: Local
-      # `traefik-public`: a public IP on the cluster's Azure load balancer, carrying the `webhook`
-      # entry point only. external-dns publishes ${flux_webhook_hostname} to it in the public zone
-      # (its `service` source; the internal Service names no hostname and is left alone). The
+      # `traefik-public`: a public IP on the cluster's Azure load balancer, carrying the public entry
+      # points only. external-dns-public publishes ${public_hostname} as an A record to it, and every
+      # public listener's hostname is a CNAME to that (its `service` source; the internal Service
+      # names no hostname and is left alone). The
       # annotation is under external-dns.kubernetes.io/: external-dns 0.23 no longer reads the old
       # external-dns.alpha.kubernetes.io/ prefix.
       additionalServices:
         public:
           type: LoadBalancer
           annotations:
-            external-dns.kubernetes.io/hostname: ${flux_webhook_hostname}
+            external-dns.kubernetes.io/hostname: ${public_hostname}
           spec:
             externalTrafficPolicy: Local
     # One replica: the prototype cluster is a single small node, where a second proxy buys no
