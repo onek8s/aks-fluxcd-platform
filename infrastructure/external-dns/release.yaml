@@ -35,9 +35,10 @@ spec:
   upgrade:
     remediation:
       retries: 3
-  # The `${...}` values are quoted: a variable aks-terraform does not send - every `dns_*` one, while
-  # no zone is named - is substituted as nothing, which unquoted is a YAML null, and the chart's
-  # templates (the service account's annotations, for one) refuse anything but a string.
+  # The `${...}` values have to be set: aks-terraform sends the `dns_*` ones only once a zone is
+  # named (dns_zone_name). One it does not send is substituted as nothing, which is a YAML null -
+  # quoting does not help, since Flux substitutes after kustomize has written the quotes away - and
+  # the chart's templates (the service account's annotations, for one) then fail to render.
   values:
     fullnameOverride: external-dns
     provider:
