@@ -83,11 +83,13 @@ spec:
       websecure:
         port: 8443
         exposedPort: 443
+    # The type is the chart's `service.type`, not one in `service.spec`: chart 39 writes both into the
+    # Service, and a duplicate key fails Flux's post-render.
     service:
+      type: LoadBalancer
       annotations:
         service.beta.kubernetes.io/azure-load-balancer-internal: "true"
       spec:
-        type: LoadBalancer
         # Keeps the client's address, rather than the node's, on the requests Traefik sees - and only
         # sends traffic to the nodes a Traefik pod runs on.
         externalTrafficPolicy: Local
