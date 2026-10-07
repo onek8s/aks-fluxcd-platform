@@ -49,7 +49,7 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | --- | --- | --- |
 | External Secrets Operator | `external-secrets` | `external-secrets` 2.12.x from https://charts.external-secrets.io |
 | external-dns | `external-dns` | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/, twice: `external-dns` (public zone) and `external-dns-internal` (private zone) |
-| Traefik Proxy | `traefik` | `traefik` 41.6.x from https://traefik.github.io/charts |
+| Traefik Proxy | `traefik` | `traefik` 39.0.x (Traefik v3.6) from https://traefik.github.io/charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
 in the table through `targetNamespace` and `storageNamespace` (the Helm release Secrets are kept
@@ -90,7 +90,10 @@ The names of every secret can be listed by every identity with a share - only va
 Applications are published through the [Kubernetes Gateway API][gatewayapi] on
 [Traefik Proxy][traefik], reached through an [Azure internal load balancer][ilb]: the
 Gateway has a private address in the cluster's network and nothing outside the network can reach it.
-aks-terraform turns on the managed Gateway API CRDs; Traefik (`infrastructure/traefik`) provides the
+aks-terraform turns on the managed Gateway API CRDs, whose version AKS ties to the cluster's
+Kubernetes version - and Traefik's minor version is tied to it in turn: Traefik serves no Gateway
+until it can watch every Gateway API kind it knows, so v3.6 needs Gateway API v1.4 (Kubernetes 1.35)
+and v3.7 needs v1.5 (Kubernetes 1.36). Traefik (`infrastructure/traefik`) provides the
 `traefik` GatewayClass and runs the proxies as pods in the `traefik` namespace. Only its Kubernetes
 Gateway API provider is on: the chart's own CRDs (IngressRoute, Middleware and the rest of Traefik's,
 and Traefik Hub's) are not installed, and nothing here uses them.
@@ -124,8 +127,9 @@ The split between the platform and the teams is the [Gateway API role model][rol
   - **`https-traefik`** and **`https-traefik-internal`** listeners (public and private zone), open
     to routes of `ingress-gateway` only, on which
     `dashboard.yaml` serves Traefik's dashboard (`api@internal`) **with no authentication** - it is
-    read-only, and the Gateway is only reachable from inside the network. Traefik lets only routes
-    in `ingress-gateway` name its internal services (`crossProviderNamespaces`).
+    read-only, and the Gateway is only reachable from inside the network. Traefik v3.6 lets a route
+    in any namespace name its internal services; limiting that to `ingress-gateway`
+    (`crossProviderNamespaces`) needs v3.7.1, which needs Kubernetes 1.36 - see below.
 
   Traefik requires a listener's port to be one of its entry points inside the pod - `8000` (`web`)
   and `8443` (`websecure`) - which the load balancer serves on 80 and 443.
