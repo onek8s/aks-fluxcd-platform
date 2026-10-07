@@ -1,8 +1,8 @@
-# The values that make this cluster's configuration its own, handed to `infra-configs` and `tenants`
+# The values that make this cluster's configuration its own, handed to the Flux Kustomizations
 # through `postBuild.substituteFrom`.
 #
-# The `${agc_...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives
-# the facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
+# The `${...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives the
+# facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
 # applied by that one. They are not to be written here by hand.
 apiVersion: v1
 kind: ConfigMap
@@ -10,11 +10,23 @@ metadata:
   name: cluster-settings
   namespace: flux-system
 data:
-  # Resource ID of the subnet Application Gateway for Containers joins (snet-aks-alb).
+  cluster_name: "${cluster_name}"
+  azure_tenant_id: "${azure_tenant_id}"
+  # The delegated subnet Application Gateway for Containers joins (snet-aks-alb), and its range:
+  # where it connects to the pods from.
   agc_subnet_id: "${agc_subnet_id}"
-  # Its address range: where Application Gateway for Containers connects to the pods from.
   agc_subnet_cidr: "${agc_subnet_cidr}"
-  # The hostname the `example` team is published on. Point its DNS record - a CNAME - at the frontend
-  # FQDN of the Gateway (`kubectl -n ingress-gateway get gateway public`).
-  # TODO: replace with the real hostname.
+  # The Key Vault the listener certificates are synced from, and the identity that reads it.
+  tls_key_vault_url: "${tls_key_vault_url}"
+  tls_identity_client_id: "${tls_identity_client_id}"
+  # The Azure DNS zone the listener hostnames are published in, and the identity that writes it.
+  dns_zone_name: "${dns_zone_name}"
+  dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
+  dns_zone_subscription_id: "${dns_zone_subscription_id}"
+  dns_identity_client_id: "${dns_identity_client_id}"
+
+  # Set here. The hostname the `example` team is published on, which has to be in dns_zone_name
+  # (and not its apex), and the Key Vault certificate - covering it - that its listener serves.
+  # TODO: replace with the real hostname and certificate name.
   example_hostname: "hello.example.com"
+  example_certificate_name: "hello-example"

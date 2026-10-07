@@ -1,7 +1,8 @@
 # The cluster's public entry point: a frontend of the Application Gateway for Containers load balancer
 # in application-load-balancer.yaml, programmed by the ALB Controller add-on (`azure-alb-external` -
 # see aks-terraform). Its address is an Azure-generated FQDN, `<random>.fzNN.alb.azure.com`, in the
-# Gateway's status; the hostnames below are CNAMEs to it.
+# Gateway's status; external-dns publishes each hostname below as a CNAME to it, and each listener's
+# certificate is synced from Key Vault (infrastructure/certificates).
 #
 # The platform owns everything here: which hostnames the cluster answers to, which team may attach
 # routes to each one, and the TLS certificate of each. A team publishes an app by attaching an
@@ -18,14 +19,11 @@ metadata:
   annotations:
     alb.networking.azure.io/alb-namespace: ingress-gateway
     alb.networking.azure.io/alb-name: public
-    # cert-manager keeps a certificate for every HTTPS listener below that names a hostname, in the
-    # Secret its certificateRefs names.
-    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   gatewayClassName: azure-alb-external
   listeners:
-    # Plain HTTP serves two things only: the ACME HTTP-01 challenges of cert-manager, and a redirect
-    # to HTTPS for everything else (https-redirect.yaml). Nothing outside this namespace attaches.
+    # Plain HTTP only redirects to HTTPS (https-redirect.yaml). Nothing outside this namespace
+    # attaches.
     - name: http
       protocol: HTTP
       port: 80

@@ -1,0 +1,69 @@
+# external-dns: publishes the hostnames of the public Gateway in the cluster's Azure DNS zone. For
+# every HTTPRoute attached to a Gateway in ingress-gateway it keeps a CNAME - the route's hostname, or
+# the listener's when the route names none - pointing at the Gateway's Application Gateway for
+# Containers frontend, and a TXT record beside it marking the record as this cluster's.
+#
+# It acts as the `<cluster identity>-dns` identity aks-terraform creates, which is federated with
+# this release's service account (`external-dns` in `external-dns` - the name is part of the
+# federation, so it cannot change) and holds DNS Zone Contributor on the zone. The `${...}` values
+# come from aks-terraform, through cluster-settings.
+#
+# The version follows patch releases on its own; a new minor version is a change to this file.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: external-dns
+      version: "1.23.x"
+      sourceRef:
+        kind: HelmRepository
+        name: external-dns
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    fullnameOverride: external-dns
+    provider:
+      name: azure
+    sources:
+      - gateway-httproute
+    # Only the platform's Gateways, and only the cluster's own zone.
+    extraArgs:
+      - --gateway-namespace=ingress-gateway
+    domainFilters:
+      - ${dns_zone_name}
+    # Records it created and that are no longer wanted are deleted; records it did not create - no
+    # TXT record with this owner beside them - are never touched.
+    policy: sync
+    txtOwnerId: ${cluster_name}
+    serviceAccount:
+      name: external-dns
+      annotations:
+        azure.workload.identity/client-id: ${dns_identity_client_id}
+    podLabels:
+      azure.workload.identity/use: "true"
+    extraVolumes:
+      - name: azure-config
+        configMap:
+          name: external-dns-azure
+    extraVolumeMounts:
+      - name: azure-config
+        mountPath: /etc/kubernetes
+        readOnly: true
+    # Requests sized for a small cluster. No limit on CPU, so it is never throttled; memory is capped
+    # so a leak is a restart rather than pressure on the node.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
