@@ -50,6 +50,14 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | external-dns | `external-dns` | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/ |
 | Traefik Hub API Gateway | `traefik` | `traefik` 41.6.x from https://traefik.github.io/charts |
 
+The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
+in the table through `targetNamespace` and `storageNamespace` (the Helm release Secrets are kept
+there too). The AKS Flux extension runs Flux multi-tenant: a HelmRelease or Kustomization without a
+`serviceAccountName` is applied as the `flux-applier` service account of its own namespace, and only
+`flux-system`'s exists, with cluster-wide rights. A release in its own namespace fails with
+`secrets is forbidden: User "system:serviceaccount:<namespace>:flux-applier"`. The extension also
+refuses references across namespaces, so the HelmRepository sits next to the HelmRelease.
+
 External Secrets Operator runs with no Azure identity of its own. The one store it has,
 `key-vault` in `ingress-gateway`, reads Key Vault as a service account federated with an identity
 aks-terraform creates.

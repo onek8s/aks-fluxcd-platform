@@ -13,9 +13,14 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: external-dns
-  namespace: external-dns
+  namespace: flux-system
 spec:
   interval: 1h
+  # The release lives in flux-system, where the AKS Flux extension's `flux-applier` service account
+  # holds the rights to install it, and is installed into `external-dns` - see the README.
+  releaseName: external-dns
+  targetNamespace: external-dns
+  storageNamespace: external-dns
   chart:
     spec:
       chart: external-dns

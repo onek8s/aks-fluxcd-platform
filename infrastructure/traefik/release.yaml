@@ -21,9 +21,14 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: traefik
-  namespace: traefik
+  namespace: flux-system
 spec:
   interval: 1h
+  # The release lives in flux-system, where the AKS Flux extension's `flux-applier` service account
+  # holds the rights to install it, and is installed into `traefik` - see the README.
+  releaseName: traefik
+  targetNamespace: traefik
+  storageNamespace: traefik
   chart:
     spec:
       chart: traefik
