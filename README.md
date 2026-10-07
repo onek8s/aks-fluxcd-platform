@@ -58,9 +58,31 @@ there too). The AKS Flux extension runs Flux multi-tenant: a HelmRelease or Kust
 `secrets is forbidden: User "system:serviceaccount:<namespace>:flux-applier"`. The extension also
 refuses references across namespaces, so the HelmRepository sits next to the HelmRelease.
 
-External Secrets Operator runs with no Azure identity of its own. The one store it has,
-`key-vault` in `ingress-gateway`, reads Key Vault as a service account federated with an identity
-aks-terraform creates.
+External Secrets Operator runs with no Azure identity of its own. It reads the cluster's Key Vault
+through a `key-vault` SecretStore in each namespace that uses it - see [Key Vault](#key-vault).
+
+## Key Vault
+
+aks-terraform creates one Key Vault for the cluster and gives every namespace its own share of it:
+**a namespace reads the secrets named `<namespace>--<name>`, and no others**. The vault enforces that
+itself, with an Azure ABAC condition on the role assignment of each namespace's identity, so nothing
+in the cluster has to be trusted to keep the namespaces apart.
+
+In each namespace that uses the vault there is a `key-vault` service account, federated with that
+namespace's identity (`key_vault_client_id_<namespace>` in `cluster-settings.yaml`), and a
+`key-vault` SecretStore naming it. External Secrets Operator requests a token for the service
+account on every read, so an `ExternalSecret` in a namespace reads that namespace's secrets only.
+
+| Namespace | Key Vault secret | Synced into |
+| --- | --- | --- |
+| `ingress-gateway` | `ingress-gateway--<example_certificate_name>` - a certificate | `https-example-tls`, the listener's certificate |
+| `traefik` | `traefik--hub-license` | `traefik-hub-license`, key `token` |
+| `example` | `example--aks-fluxcd-example-git` - a read-only token for the team's repository | `aks-fluxcd-example-git`, for Flux |
+| `example` | `example--ghcr-pull` - a Docker config JSON | `ghcr-pull`, for pulling the team's images |
+
+The names of every secret can be listed by every identity with a share - only values are kept apart
+- so no secret goes in a name. The cluster's admin groups run the whole vault; a team namespace's
+`writer` and `admin` grants manage that namespace's secrets.
 
 ## Publishing applications
 
@@ -99,15 +121,15 @@ The split between the platform and the teams is the [Gateway API role model][rol
 
 ### Traefik Hub license
 
-Traefik Hub API Gateway needs a license token, which Git is no place for. Until External Secrets has
-a store to sync it from, it is created by hand, once per cluster:
+Traefik Hub API Gateway needs a license token, which Git is no place for. It is put in the vault once
+per cluster, by an admin, and synced into the `traefik-hub-license` Secret:
 
 ```sh
-kubectl -n traefik create secret generic traefik-hub-license --from-literal=token=<license token>
+az keyvault secret set --vault-name <key vault> --name traefik--hub-license --value <license token>
 ```
 
-Until it exists the Traefik pods do not start and the `traefik` Kustomization stays not-ready; nothing
-else waits for it.
+Until it is there the Traefik pods do not start and the `traefik` Kustomization stays not-ready;
+nothing else waits for it.
 
 ### Certificates and DNS
 
@@ -115,9 +137,11 @@ Traefik reads listener certificates from Kubernetes Secrets, and has no DNS inte
 Vault and DNS automation serves the Istio based GatewayClasses only. So both run here, each acting as an identity aks-terraform creates and federates with one service
 account:
 
-- **Certificates** (`infrastructure/certificates`): the certificates are kept in Key Vault - imported
-  by hand, or issued by the vault through an integrated CA. An `ExternalSecret` per listener reads
-  the certificate's secret - a PFX - as `ingress-gateway/keyvault-certificates` and writes it as the
+- **Certificates** (`infrastructure/certificates`): the certificates are kept in Key Vault as
+  `ingress-gateway--<name>`, ingress-gateway's share of it - imported by an admin
+  (`az keyvault certificate import --vault-name <key vault> --name ingress-gateway--<name> --file ...`),
+  or issued by the vault through an integrated CA. An `ExternalSecret` per listener reads the
+  certificate's secret - a PFX - as `ingress-gateway/key-vault` and writes it as the
   `kubernetes.io/tls` Secret the listener names. A new version in the vault reaches the listener
   within the hour.
 - **DNS** (`infrastructure/external-dns`): external-dns, as `external-dns/external-dns`, keeps an
@@ -134,17 +158,18 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 
 | Variable | Set by | |
 | --- | --- | --- |
-| `tls_key_vault_url`, `tls_identity_client_id` | aks-terraform | The vault the certificates are synced from, and the identity that reads it. |
+| `key_vault_url`, `key_vault_client_id_<namespace>` | aks-terraform | The cluster's Key Vault, and the identity each namespace's `key-vault` service account reads its share of it as. A namespace added to the vault's shares in aks-terraform is added here too. |
 | `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id` | aks-terraform | The zone the hostnames are published in, and the identity that writes it. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
 | `example_hostname` | this repository | The hostname of the `https-example` listener: in the zone, and not its apex. |
-| `example_certificate_name` | this repository | The Key Vault certificate the `https-example` listener serves. |
+| `example_certificate_name` | this repository | The Key Vault certificate the `https-example` listener serves, without its `ingress-gateway--` prefix. |
 
 The ones aks-terraform sets are Azure facts and are never written here: it gives them to the
 cluster's Flux configuration as post-build variables of the `platform` Kustomization, which fills
 them into `cluster-settings.yaml` as it applies it.
 
-A new hostname goes live in three steps: put a certificate covering it in the vault, add a listener
+A new hostname goes live in three steps: put a certificate covering it in the vault as
+`ingress-gateway--<name>`, add a listener
 for it to `infrastructure/configs/gateway/gateway.yaml` with an `ExternalSecret` beside the others,
 and set both names in `cluster-settings.yaml`. external-dns publishes the record once a route
 attaches to the listener.
@@ -164,6 +189,8 @@ deploy into it from its own repository:
 - a `GitRepository` for the team's repository and a Flux `Kustomization` that applies it as that
   service account, with `targetNamespace` set to the namespace. Both sit in the team namespace,
   since the AKS Flux extension refuses references across namespaces;
+- a `key-vault` service account and SecretStore for the namespace's share of the Key Vault, and the
+  `ExternalSecret`s for the secrets below;
 - a `NetworkPolicy` that lets the Traefik pods in. The namespace accepts connections from its own
   pods only, and Traefik connects to the team's pods from the `traefik` namespace.
 
@@ -176,15 +203,23 @@ The team can therefore change its own namespace and nothing else - its `HTTPRout
 
 ### Secrets a tenant needs
 
-Team repositories are private, and Git is no place for their credentials. Until External Secrets has
-a store to sync them from, they are created by hand:
+Team repositories and images are private, and Git is no place for their credentials. They are kept
+in the namespace's share of the Key Vault - by an admin, or by the team's own writers - and synced
+from there:
 
 ```sh
 # Read-only token (fine-grained, `Contents: read`) for the team's repository, for Flux.
-kubectl -n example create secret generic aks-fluxcd-example-git \
-  --from-literal=username=git --from-literal=password=github_pat_...
+az keyvault secret set --vault-name <key vault> --name example--aks-fluxcd-example-git --value github_pat_...
 
-# Pull access to the team's image, while its GHCR package is private.
-kubectl -n example create secret docker-registry ghcr-pull \
-  --docker-server=ghcr.io --docker-username=<github user> --docker-password=<token with read:packages>
+# Pull access to the team's images, while their GHCR packages are private: a Docker config JSON.
+az keyvault secret set --vault-name <key vault> --name example--ghcr-pull --value "$(
+  kubectl create secret docker-registry ghcr-pull --dry-run=client -o jsonpath='{.data.\.dockerconfigjson}' \
+    --docker-server=ghcr.io --docker-username=<github user> --docker-password=<token with read:packages> |
+  base64 -d)"
 ```
+
+A Secret created by hand before the vault was in use is taken over by its `ExternalSecret`; if
+External Secrets reports that it cannot, delete the hand-made one and it is created from the vault.
+
+A team keeps its own secrets the same way, as `<namespace>--<name>`, and syncs them with an
+`ExternalSecret` of its own against the namespace's `key-vault` store.

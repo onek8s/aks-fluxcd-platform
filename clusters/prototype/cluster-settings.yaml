@@ -12,9 +12,13 @@ metadata:
 data:
   cluster_name: "${cluster_name}"
   azure_tenant_id: "${azure_tenant_id}"
-  # The Key Vault the listener certificates are synced from, and the identity that reads it.
-  tls_key_vault_url: "${tls_key_vault_url}"
-  tls_identity_client_id: "${tls_identity_client_id}"
+  # The cluster's Key Vault, and for each namespace with a share of it the identity that namespace's
+  # `key-vault` service account reads it as. A namespace reads the secrets named `<namespace>--...`
+  # and no others.
+  key_vault_url: "${key_vault_url}"
+  key_vault_client_id_ingress_gateway: "${key_vault_client_id_ingress_gateway}"
+  key_vault_client_id_traefik: "${key_vault_client_id_traefik}"
+  key_vault_client_id_example: "${key_vault_client_id_example}"
   # The Azure DNS zone the listener hostnames are published in, and the identity that writes it.
   dns_zone_name: "${dns_zone_name}"
   dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
@@ -22,7 +26,8 @@ data:
   dns_identity_client_id: "${dns_identity_client_id}"
 
   # Set here. The hostname the `example` team is published on, which has to be in dns_zone_name
-  # (and not its apex), and the Key Vault certificate - covering it - that its listener serves.
+  # (and not its apex), and the Key Vault certificate - covering it - that its listener serves. The
+  # certificate is `ingress-gateway--<this name>` in the vault: ingress-gateway's share of it.
   # TODO: replace with the real hostname and certificate name.
   example_hostname: "hello.example.com"
   example_certificate_name: "hello-example"

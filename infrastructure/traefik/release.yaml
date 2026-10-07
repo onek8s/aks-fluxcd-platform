@@ -8,9 +8,9 @@
 # network rather than a public one. Traefik copies that address into the status of the Gateways it
 # serves, and external-dns publishes the listener hostnames as A records to it.
 #
-# The license is the `token` key of the `traefik-hub-license` Secret in this namespace. It is created
-# by hand - see the README; Git is no place for it. Without it the pods do not start, which is why
-# this is a Flux Kustomization of its own that nothing waits for.
+# The license is the `token` key of the `traefik-hub-license` Secret in this namespace, synced from
+# Key Vault by license.yaml. Without it the pods do not start, which is why this is a Flux
+# Kustomization of its own that nothing waits for.
 #
 # The chart installs the Traefik and Traefik Hub CRDs from its crds/ directory. The Gateway API CRDs
 # are not among them: AKS manages those (aks-terraform), and nothing else may bring its own.
