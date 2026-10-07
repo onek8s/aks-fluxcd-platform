@@ -1,4 +1,4 @@
-# Where Traefik Hub API Gateway runs. Held to the restricted Pod Security Standard, like every
+# Where Traefik Proxy runs. Held to the restricted Pod Security Standard, like every
 # namespace the cluster manages itself: the chart runs Traefik non-root, with no privilege
 # escalation, every capability dropped, a read-only root file system and the RuntimeDefault seccomp
 # profile, so it meets it as it is.

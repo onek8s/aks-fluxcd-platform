@@ -44,19 +44,15 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# Traefik Hub API Gateway, which serves the internal Gateway. On its own, with nothing waiting for it:
-# its pods do not start until the license is in Key Vault (see the README), and that must hold back
-# nothing but the Gateway itself. It waits for the controllers, since the license is synced by
-# External Secrets Operator; otherwise it needs no CRDs but its own and the Gateway API's, which AKS
-# manages.
+# Traefik Proxy, which serves the internal Gateway. On its own, with nothing waiting for it and
+# waiting for nothing: it needs no CRDs but the Gateway API's, which AKS manages, and no values of
+# this cluster's.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: traefik
   namespace: flux-system
 spec:
-  dependsOn:
-    - name: infra-controllers
   interval: 1h
   retryInterval: 1m
   timeout: 10m
@@ -66,10 +62,6 @@ spec:
   path: ./infrastructure/traefik
   prune: true
   wait: true
-  postBuild:
-    substituteFrom:
-      - kind: ConfigMap
-        name: cluster-settings
 ---
 # external-dns, on its own: nothing waits for it, so a zone that is not set up yet - or an outage of
 # Azure DNS - keeps the hostnames from being published and holds back nothing else.

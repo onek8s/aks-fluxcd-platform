@@ -17,7 +17,6 @@ data:
   # and no others.
   key_vault_url: "${key_vault_url}"
   key_vault_client_id_ingress_gateway: "${key_vault_client_id_ingress_gateway}"
-  key_vault_client_id_traefik: "${key_vault_client_id_traefik}"
   key_vault_client_id_example: "${key_vault_client_id_example}"
   # The Azure DNS zone the listener hostnames are published in, and the identity that writes it.
   dns_zone_name: "${dns_zone_name}"
