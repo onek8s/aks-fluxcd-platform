@@ -110,7 +110,8 @@ The split between the platform and the teams is the [Gateway API role model][rol
 | Letting Traefik into a team namespace | Platform | `tenants/<team>/networkpolicy.yaml` |
 | `HTTPRoute`, `Service`, the app | Team | the team's own repository |
 
-- **Traefik** runs two replicas behind a `LoadBalancer` Service carrying
+- **Traefik** runs one replica - the prototype cluster is a single small node; an update replaces
+  the pod rather than surging a second one, so it needs no spare room - behind a `LoadBalancer` Service carrying
   `service.beta.kubernetes.io/azure-load-balancer-internal: "true"`, so AKS puts its frontend on a
   private IP of the cluster's network - in the node subnet, for a cluster in an existing network -
   rather than on a public one. `externalTrafficPolicy: Local` keeps the client's address. Traefik
