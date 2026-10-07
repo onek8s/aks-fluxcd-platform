@@ -76,8 +76,7 @@ account on every read, so an `ExternalSecret` in a namespace reads that namespac
 
 | Namespace | Key Vault secret | Synced into |
 | --- | --- | --- |
-| `ingress-gateway` | `ingress-gateway--<example_certificate_name>` - a certificate | `https-example-tls`, the certificate of `https-example` and `https-example-internal` |
-| `ingress-gateway` | `ingress-gateway--<traefik_certificate_name>` - a certificate | `https-traefik-tls`, the certificate of `https-traefik` and `https-traefik-internal` |
+| `ingress-gateway` | `ingress-gateway--<gateway_certificate_name>` - a wildcard certificate for both zones | `gateway-tls`, the certificate of every HTTPS listener |
 | `example` | `example--aks-fluxcd-example-git` - a read-only token for the team's repository | `aks-fluxcd-example-git`, for Flux |
 | `example` | `example--ghcr-pull` - a Docker config JSON | `ghcr-pull`, for pulling the team's images |
 
@@ -120,11 +119,10 @@ The split between the platform and the teams is the [Gateway API role model][rol
   - an **`http`** listener, open to routes of `ingress-gateway` only, that redirects everything to
     HTTPS;
   - one **HTTPS listener per published hostname**, each open to the `HTTPRoute`s of one team
-    namespace and terminating TLS with the certificate in the Secret it names. A team's
+    namespace and terminating TLS with the wildcard certificate in `gateway-tls`. A team's
     route names the listener (`sectionName`) and neither hostname nor certificate. A team can be
     published on a hostname in the private zone as well - `https-example-internal` - by attaching
-    its route to both listeners. That listener serves the public hostname's certificate, which does
-    not name it, so clients see a name mismatch there;
+    its route to both listeners;
   - **`https-traefik`** and **`https-traefik-internal`** listeners (public and private zone), open
     to routes of `ingress-gateway` only, on which
     `dashboard.yaml` serves Traefik's dashboard (`api@internal`) **with no authentication** - it is
@@ -170,11 +168,11 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id` | aks-terraform | The zone the hostnames are published in, and the identity that writes it. |
 | `internal_dns_zone_name`, `internal_dns_zone_resource_group_name`, `internal_dns_zone_subscription_id` | aks-terraform | The private zone the hostnames are also published in. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
-| `example_hostname` | this repository | The hostname of the `https-example` listener: in the zone, and not its apex. |
-| `example_certificate_name` | this repository | The Key Vault certificate the `https-example` listener serves, without its `ingress-gateway--` prefix. |
-| `example_internal_hostname` | this repository | The hostname of the `https-example-internal` listener: in the private zone, and not its apex. |
-| `traefik_hostname`, `traefik_certificate_name` | this repository | The hostname of Traefik's dashboard, and the Key Vault certificate its `https-traefik` listener serves. |
-| `traefik_internal_hostname` | this repository | The dashboard's hostname in the private zone (`https-traefik-internal`), served the same certificate. |
+| `gateway_certificate_name` | this repository | The Key Vault certificate every HTTPS listener serves, without its `ingress-gateway--` prefix: a wildcard for `*.<dns_zone_name>` and `*.<internal_dns_zone_name>`, issued by aks-terraform's Renew Certificate workflow. |
+| `example_hostname` | this repository | The hostname of the `https-example` listener: one level below the zone's apex, which is all the wildcard covers. |
+| `example_internal_hostname` | this repository | The hostname of the `https-example-internal` listener, the same way in the private zone. |
+| `traefik_hostname` | this repository | The hostname of Traefik's dashboard (`https-traefik`). |
+| `traefik_internal_hostname` | this repository | The dashboard's hostname in the private zone (`https-traefik-internal`). |
 
 The ones aks-terraform sets are Azure facts and are never written here: it gives them to the
 cluster's Flux configuration as post-build variables of the `platform` Kustomization, which fills
