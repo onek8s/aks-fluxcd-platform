@@ -1,13 +1,10 @@
-# The namespace accepts connections from its own pods only, and Application Gateway for Containers is
-# not a pod: it reaches the pods directly from addresses in its own subnet. This lets that subnet in,
-# to any pod of the namespace - the load balancer only ever connects to the backends the namespace's
-# own HTTPRoutes name.
-#
-# `${agc_subnet_cidr}` comes from aks-terraform, through cluster-settings.
+# The namespace accepts connections from its own pods only. This lets in Traefik, which serves the
+# internal Gateway the team's routes attach to, to any pod of the namespace - Traefik only ever
+# connects to the backends the namespace's own HTTPRoutes name.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-from-application-gateway
+  name: allow-from-traefik
   namespace: example
 spec:
   podSelector: {}
@@ -15,5 +12,9 @@ spec:
     - Ingress
   ingress:
     - from:
-        - ipBlock:
-            cidr: ${agc_subnet_cidr}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik

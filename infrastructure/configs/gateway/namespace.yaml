@@ -1,6 +1,5 @@
-# Where the public Gateway, the Application Gateway for Containers load balancer behind it and the
-# Secrets holding its listener certificates live. The proxies are an Azure resource, not pods, so
-# nothing runs here.
+# Where the internal Gateway and the Secrets holding its listener certificates live. Traefik, which
+# serves the Gateway, runs in `traefik`; nothing runs here.
 #
 # Held to the restricted Pod Security Standard, like every namespace the cluster manages itself.
 apiVersion: v1

@@ -1,6 +1,6 @@
-# The TLS certificates of the public Gateway's listeners, synced out of Key Vault by External Secrets
-# Operator. Application Gateway for Containers reads listener certificates from Kubernetes Secrets
-# only, so each one is kept in the Secret its listener names.
+# The TLS certificates of the internal Gateway's listeners, synced out of Key Vault by External Secrets
+# Operator. Traefik reads listener certificates from the Kubernetes Secrets the listeners name, so
+# each one is kept in the Secret its listener names.
 #
 # Reconciled as its own Flux Kustomization, after `infra-configs` creates the namespace and nothing
 # waiting for it: a certificate missing from the vault leaves its listener without one, and holds

@@ -1,4 +1,5 @@
-# Sends every plain HTTP request to HTTPS.
+# Sends every plain HTTP request to HTTPS. The port is stated: the listener's own is Traefik's entry
+# point inside the pod (8000), not the one clients connect to.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -8,11 +9,12 @@ spec:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: public
+      name: internal
       sectionName: http
   rules:
     - filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https
+            port: 443
             statusCode: 301
