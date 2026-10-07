@@ -35,6 +35,9 @@ spec:
   upgrade:
     remediation:
       retries: 3
+  # The `${...}` values are quoted: a variable aks-terraform does not send - every `dns_*` one, while
+  # no zone is named - is substituted as nothing, which unquoted is a YAML null, and the chart's
+  # templates (the service account's annotations, for one) refuse anything but a string.
   values:
     fullnameOverride: external-dns
     provider:
@@ -45,15 +48,15 @@ spec:
     extraArgs:
       - --gateway-namespace=ingress-gateway
     domainFilters:
-      - ${dns_zone_name}
+      - "${dns_zone_name}"
     # Records it created and that are no longer wanted are deleted; records it did not create - no
     # TXT record with this owner beside them - are never touched.
     policy: sync
-    txtOwnerId: ${cluster_name}
+    txtOwnerId: "${cluster_name}"
     serviceAccount:
       name: external-dns
       annotations:
-        azure.workload.identity/client-id: ${dns_identity_client_id}
+        azure.workload.identity/client-id: "${dns_identity_client_id}"
     podLabels:
       azure.workload.identity/use: "true"
     extraVolumes:
