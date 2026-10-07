@@ -1,13 +1,12 @@
 # The TLS certificates of the internal Gateway's listeners, synced out of Key Vault by External Secrets
-# Operator. Traefik reads listener certificates from the Kubernetes Secrets the listeners name, so
-# each one is kept in the Secret its listener names.
+# Operator. Traefik reads listener certificates from the Kubernetes Secrets the listeners name; they
+# all name one, a wildcard certificate for both zones.
 #
 # Reconciled as its own Flux Kustomization, after `infra-configs` creates the namespace and nothing
-# waiting for it: a certificate missing from the vault leaves its listener without one, and holds
+# waiting for it: a certificate missing from the vault leaves the listeners without one, and holds
 # back nothing else.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - secret-store.yaml
-  - https-example-tls.yaml
-  - https-traefik-tls.yaml
+  - gateway-tls.yaml

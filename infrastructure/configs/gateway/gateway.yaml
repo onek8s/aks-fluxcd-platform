@@ -2,11 +2,12 @@
 # infrastructure/traefik), reached through an Azure internal load balancer. Its address is the private
 # IP AKS gives the load balancer in the cluster's network, which Traefik copies into the Gateway's
 # status; external-dns publishes each hostname below as an A record to it - in the public zone or the
-# private one, whichever the hostname is in - and each listener's certificate is synced from Key
-# Vault (infrastructure/certificates). Nothing outside the network can reach it.
+# private one, whichever the hostname is in - and every listener serves one wildcard certificate for
+# both zones, synced from Key Vault (infrastructure/certificates). Nothing outside the network can
+# reach it.
 #
 # The platform owns everything here: which hostnames the cluster answers to, which team may attach
-# routes to each one, and the TLS certificate of each. A team publishes an app by attaching an
+# routes to each one, and the TLS certificate they serve. A team publishes an app by attaching an
 # HTTPRoute to the listener it is given, naming neither hostname nor certificate.
 #
 # The listener ports are Traefik's entry points inside the pod - 8000 for `web`, 8443 for
@@ -44,7 +45,7 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: https-example-tls
+            name: gateway-tls
       allowedRoutes:
         kinds:
           - kind: HTTPRoute
@@ -53,8 +54,7 @@ spec:
           selector:
             matchLabels:
               kubernetes.io/metadata.name: example
-    # The same team, on its hostname in the private zone. It serves the public hostname's
-    # certificate, which does not name it.
+    # The same team, on its hostname in the private zone.
     - name: https-example-internal
       protocol: HTTPS
       port: 8443
@@ -63,7 +63,7 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: https-example-tls
+            name: gateway-tls
       allowedRoutes:
         kinds:
           - kind: HTTPRoute
@@ -81,13 +81,13 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: https-traefik-tls
+            name: gateway-tls
       allowedRoutes:
         kinds:
           - kind: HTTPRoute
         namespaces:
           from: Same
-    # The dashboard on its hostname in the private zone, with the same certificate.
+    # The dashboard on its hostname in the private zone.
     - name: https-traefik-internal
       protocol: HTTPS
       port: 8443
@@ -96,7 +96,7 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: https-traefik-tls
+            name: gateway-tls
       allowedRoutes:
         kinds:
           - kind: HTTPRoute
