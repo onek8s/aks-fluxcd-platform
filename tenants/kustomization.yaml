@@ -1,8 +1,11 @@
-# Team namespaces whose own repositories Flux deploys. Each cluster pulls this directory in through
-# its `tenants` Flux Kustomization - see clusters/<cluster>/tenants.yaml.
+# What team namespaces need inside the cluster to deploy from their own repositories. Each cluster
+# pulls this directory in through its `tenants` Flux Kustomization - see
+# clusters/<cluster>/tenants.yaml.
 #
 # The namespaces themselves are AKS managed namespaces created by aks-terraform (managed_namespaces),
-# with their quota, default network policy and Pod Security Standard. Nothing here creates them.
+# with their quota, default network policy and Pod Security Standard, and so is the Flux
+# configuration that syncs each team's repository (managed_namespaces.<team>.flux). Nothing here
+# creates them.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

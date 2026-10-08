@@ -26,7 +26,9 @@ infrastructure/
                           # Azure Private DNS
   flux-webhook/           # Flux's GitHub webhook receiver, on a public Gateway
 tenants/
-  example/                # the `example` team: olljanat-ai/aks-fluxcd-example, synced into `example`
+  example/                # what the `example` team needs in its namespace; its repository,
+                          # olljanat-ai/aks-fluxcd-example, is synced by aks-terraform's Flux
+                          # configuration `example`
 ```
 
 - `clusters/<cluster>/` is the path a cluster's `flux_git_repository.path` names. It holds Flux
@@ -234,21 +236,29 @@ Without the webhook, or while it is down, Flux still polls the repository.
 
 ## Tenants
 
-A team namespace is an AKS managed namespace, created by aks-terraform with its quota, default
-network policy (closed ingress) and Pod Security Standard. `tenants/<team>/` is what lets the team
-deploy into it from its own repository:
+A team is one entry in aks-terraform's `managed_namespaces`: the AKS managed namespace with its
+quota, default network policy (closed ingress) and Pod Security Standard, who gets into it, its
+share of the Key Vault, and - in `flux` - its repository. aks-terraform turns that last part into a
+**namespace-scoped Flux configuration** of the team's own, named after the namespace, so whether the
+team's repository is in sync shows on its own row in the portal's GitOps view of the cluster. The
+extension applies it as the `flux-applier` service account of that namespace and refuses references
+across namespaces, so the team changes its own namespace and nothing else.
 
-- a `flux-reconciler` service account bound to the `admin` role in that namespace alone;
-- a `GitRepository` for the team's repository and a Flux `Kustomization` that applies it as that
-  service account, with `targetNamespace` set to the namespace. Both sit in the team namespace,
-  since the AKS Flux extension refuses references across namespaces;
+`tenants/<team>/` here is what the team needs inside the cluster:
+
 - a `key-vault` service account and SecretStore for the namespace's share of the Key Vault, and the
-  `ExternalSecret`s for the secrets below;
+  `ExternalSecret`s for the secrets below - among them the token the namespace's Flux configuration
+  reads the team's repository with;
 - a `NetworkPolicy` that lets the Traefik pods in. The namespace accepts connections from its own
   pods only, and Traefik connects to the team's pods from the `traefik` namespace.
 
-The team can therefore change its own namespace and nothing else - its `HTTPRoute`s included, which
-`infrastructure/configs/gateway-api-rbac.yaml` adds to `admin`.
+Adding a team is therefore an entry in aks-terraform's variables file and a `tenants/<team>/`
+directory here, listed in `tenants/kustomization.yaml`.
+
+`tenants/example/sync.yaml` and `rbac.yaml` are what synced the team's repository before: a
+`GitRepository` and a `Kustomization` applying it as a `flux-reconciler` service account bound to
+`admin`. They are kept suspended, and no longer pruning, until the namespace's Flux configuration is
+Ready, and are deleted after that - see the comment in `sync.yaml`.
 
 | Team | Namespace | Repository | Listener |
 | --- | --- | --- | --- |
