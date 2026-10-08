@@ -1,0 +1,68 @@
+# The users' namespaces get disks from `portable-disk` and nowhere else, so that every volume a team
+# has outlives the cluster and can be moved to the next one (see storageclass.yaml). Enforced by the
+# API server itself - a ValidatingAdmissionPolicy, no webhook to run - on creation:
+#
+#   - A PersistentVolumeClaim names `portable-disk`. One that names no class is given AKS's `default`
+#     by the API server before this runs, and is refused like any other class. A generic ephemeral
+#     volume is a claim the cluster creates for the pod, and is held to the same.
+#   - A pod mounts no inline `csi` volume, which would reach Azure Files or another driver without
+#     a claim at all. The restricted Pod Security Standard already refuses the in-tree `azureDisk`
+#     and `azureFile` volumes.
+#
+# A team cannot get round it with a class or a volume of its own: StorageClasses and
+# PersistentVolumes are cluster-wide, and a namespace grant reaches neither.
+#
+# Only creation is checked, so a claim that existed before this policy is left alone. The platform's
+# own namespaces, and Kubernetes' and AKS's, are not users' and are left out in the binding below.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portable-storage-only
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["persistentvolumeclaims", "pods"]
+  validations:
+    - expression: >-
+        request.resource.resource != 'persistentvolumeclaims' ||
+        (has(object.spec.storageClassName) && object.spec.storageClassName == 'portable-disk')
+      messageExpression: >-
+        'PersistentVolumeClaim ' + object.metadata.name + ' must use storageClassName: portable-disk, whose disks
+        outlive the cluster; ' + (has(object.spec.storageClassName) ? '"' + object.spec.storageClassName + '"' : 'none')
+        + ' is not allowed in this namespace.'
+      reason: Forbidden
+    - expression: >-
+        request.resource.resource != 'pods' || !has(object.spec.volumes) ||
+        object.spec.volumes.all(volume, !has(volume.csi))
+      message: >-
+        Pods in this namespace cannot mount inline csi volumes. Use a PersistentVolumeClaim on the
+        portable-disk StorageClass.
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portable-storage-only
+spec:
+  policyName: portable-storage-only
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            # Kubernetes' and AKS's.
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            # The platform's (infrastructure/).
+            - flux-system
+            - external-secrets
+            - external-dns
+            - traefik
+            - ingress-gateway
