@@ -16,7 +16,8 @@ clusters/
                           # and `storage`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
   prototype-b/            # aks-prototype-b: the same, beside it on the same shared resources,
-                          # but stateless - no `storage` - see "Stateless clusters"
+                          # but stateless - `stateless` instead of `storage` - see
+                          # "Stateless clusters"
 infrastructure/
   controllers/            # cluster-wide controllers every cluster runs
     external-secrets/     # External Secrets Operator
@@ -28,6 +29,8 @@ infrastructure/
   external-dns/           # external-dns, publishing the listener hostnames in Azure DNS and
                           # Azure Private DNS
   flux-webhook/           # Flux's GitHub webhook receiver, on a public Gateway
+  stateless/              # for a cluster without persistent storage: the admission policy that
+                          # refuses every StorageClass, PersistentVolume and claim
   storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster, and
                           # the admission policy that makes it the only storage users get
 tenants/
@@ -283,6 +286,18 @@ Disk, Azure Files, Azure Blob - nor the snapshot controller (aks-terraform,
 nothing to be provisioned from. `clusters/prototype-b` leaves out the `storage` Kustomization - no
 `portable-disk`, no `portable-storage-only` policy - and `portable_disk_resource_group_name`, which
 aks-terraform does not send.
+
+AKS's addon-manager still creates two StorageClasses, `default` and `managed-csi-premium-v2`, with
+`addonmanager.kubernetes.io/mode: EnsureExists` - it creates them again if they are deleted. So the
+cluster's `stateless` Kustomization applies `infrastructure/stateless`: the `no-persistent-storage`
+ValidatingAdmissionPolicy refuses the creation of any StorageClass or PersistentVolume, by anyone,
+of a PersistentVolumeClaim in any namespace but `kube-system`, and of a pod with an inline `csi` or
+`ephemeral` volume. With it in place a cluster admin deletes AKS's two classes once, and the
+addon-manager cannot bring them back:
+
+```sh
+kubectl delete storageclass default managed-csi-premium-v2
+```
 
 Only workloads that keep no state run there. The `example` team's Flux configuration syncs
 `stateless/` of its repository on aks-prototype-b rather than `apps/`: aks-hello, without boot-log.
