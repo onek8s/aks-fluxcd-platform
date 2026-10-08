@@ -1,0 +1,70 @@
+# The values that make this cluster's configuration its own, handed to the Flux Kustomizations
+# through `postBuild.substituteFrom`.
+#
+# aks-prototype-free-b: a second cluster beside aks-prototype-free (clusters/prototype), for trying
+# out moving workloads from one cluster to another. It shares that cluster's Key Vault and shared
+# resource group (aks-terraform, envs/prototype-free-b.tfvars), so it reads the same secrets and
+# serves the same wildcard certificate, and a `portable-disk` volume can be moved between the two.
+#
+# What it does not share are hostnames. Each one below is the other cluster's with `-b` appended, so
+# the two run side by side without contending for a DNS record: external-dns leaves a record alone
+# that another cluster owns. Moving the `example` team for good is swapping its hostnames here and in
+# clusters/prototype - see the README, "Moving a workload to another cluster".
+#
+# The `${...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives the
+# facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
+# applied by that one. They are not to be written here by hand.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-settings
+  namespace: flux-system
+data:
+  cluster_name: "${cluster_name}"
+  azure_tenant_id: "${azure_tenant_id}"
+  # The cluster's Key Vault, and for each namespace with a share of it the identity that namespace's
+  # `key-vault` service account reads it as. A namespace reads the secrets named `<namespace>--...`
+  # and no others.
+  key_vault_url: "${key_vault_url}"
+  key_vault_client_id_ingress_gateway: "${key_vault_client_id_ingress_gateway}"
+  key_vault_client_id_example: "${key_vault_client_id_example}"
+  key_vault_client_id_flux_system: "${key_vault_client_id_flux_system}"
+  # The Azure DNS zone the listener hostnames are published in, and the identity that writes it.
+  dns_zone_name: "${dns_zone_name}"
+  dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
+  dns_zone_subscription_id: "${dns_zone_subscription_id}"
+  dns_identity_client_id: "${dns_identity_client_id}"
+  # The Azure Private DNS zone the listener hostnames are also published in, written by the same
+  # identity. Its names resolve only inside the networks it is linked to.
+  internal_dns_zone_name: "${internal_dns_zone_name}"
+  internal_dns_zone_resource_group_name: "${internal_dns_zone_resource_group_name}"
+  internal_dns_zone_subscription_id: "${internal_dns_zone_subscription_id}"
+  # The resource group of what outlives the cluster: its Key Vault, and the disks of the
+  # `portable-disk` StorageClass (infrastructure/storage).
+  shared_resource_group_name: "${shared_resource_group_name}"
+
+  # Set here. The Key Vault certificate every listener of the Gateway serves - a wildcard for both
+  # zones, `*.<dns_zone_name>` and `*.<internal_dns_zone_name>`, so it covers every hostname below.
+  # It is `ingress-gateway--<this name>` in the vault: ingress-gateway's share of it. aks-terraform's
+  # Renew Certificate workflow issues it from Let's Encrypt and renews it there, under this name;
+  # change the two together, there and here.
+  gateway_certificate_name: "wildcard"
+
+  # Set here. The hostname the `example` team is published on, on the internet, which has to be one
+  # level below dns_zone_name - the wildcard covers no deeper - and the same in
+  # internal_dns_zone_name, inside the network.
+  example_hostname: "hello-b.onek8s.lol"
+  example_internal_hostname: "hello-b.internal.onek8s.lol"
+
+  # Set here. The hostnames Traefik's dashboard is published on, in the two zones the same way. The
+  # dashboard asks for no authentication: on the public hostname anyone on the internet can read it -
+  # a prototype's choice.
+  traefik_hostname: "traefik-b.onek8s.lol"
+  traefik_internal_hostname: "traefik-b.internal.onek8s.lol"
+
+  # Set here. The name of the cluster's public IP - Traefik's `traefik-public` Service - in
+  # dns_zone_name: an A record that every public hostname above and below is a CNAME to.
+  public_hostname: "public-b.onek8s.lol"
+  # Set here. The hostname Flux's webhook receiver is published on, in dns_zone_name (one level below
+  # it, for the wildcard certificate). GitHub's webhook for the platform repository points at it.
+  flux_webhook_hostname: "flux-webhook-b.onek8s.lol"

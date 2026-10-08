@@ -9,11 +9,14 @@ else lives here.
 
 ```
 clusters/
-  prototype/
+  prototype/              # aks-prototype-free
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
-                          # `infra-certificates`, `traefik`, `external-dns` and `flux-webhook`
+                          # `infra-certificates`, `traefik`, `external-dns`, `flux-webhook`
+                          # and `storage`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
+  prototype-free-b/       # aks-prototype-free-b: the same, beside it, for trying out moving
+                          # workloads between clusters - see "Moving a workload to another cluster"
 infrastructure/
   controllers/            # cluster-wide controllers every cluster runs
     external-secrets/     # External Secrets Operator
@@ -25,6 +28,7 @@ infrastructure/
   external-dns/           # external-dns, publishing the listener hostnames in Azure DNS and
                           # Azure Private DNS
   flux-webhook/           # Flux's GitHub webhook receiver, on a public Gateway
+  storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
 tenants/
   example/                # what the `example` team needs in its namespace; its repository,
                           # olljanat-ai/aks-fluxcd-example, is synced by aks-terraform's Flux
@@ -38,8 +42,8 @@ tenants/
   controllers to be ready, so configuration that needs their CRDs can follow it with
   `dependsOn: [{ name: infra-controllers }]`.
 - `infrastructure/configs/` follows `infra-controllers`, and `tenants/` and
-  `infrastructure/certificates/` follow `infra-configs`, and `infrastructure/flux-webhook/` both. `infrastructure/traefik/` and
-  `infrastructure/external-dns/` follow nothing. Nothing waits for Traefik, the certificates or
+  `infrastructure/certificates/` follow `infra-configs`, and `infrastructure/flux-webhook/` both. `infrastructure/traefik/`,
+  `infrastructure/external-dns/` and `infrastructure/storage/` follow nothing. Nothing waits for Traefik, the certificates or
   external-dns, so a vault or a zone that is not set up yet holds back nothing but the Gateway's
   certificates and hostnames themselves.
 
@@ -189,6 +193,7 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id` | aks-terraform | The zone the hostnames are published in, and the identity that writes it. |
 | `internal_dns_zone_name`, `internal_dns_zone_resource_group_name`, `internal_dns_zone_subscription_id` | aks-terraform | The private zone the hostnames are also published in. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
+| `shared_resource_group_name` | aks-terraform | The resource group of what outlives the cluster - its Key Vault, and the disks of the `portable-disk` StorageClass. See [Persistent volumes](#persistent-volumes). |
 | `gateway_certificate_name` | this repository | The Key Vault certificate every HTTPS listener serves, without its `ingress-gateway--` prefix: a wildcard for `*.<dns_zone_name>` and `*.<internal_dns_zone_name>`, issued by aks-terraform's Renew Certificate workflow. |
 | `example_hostname` | this repository | The hostname of the public `https-example` listener: one level below the zone's apex, which is all the wildcard covers. |
 | `example_internal_hostname` | this repository | The hostname of the `https-example-internal` listener, the same way in the private zone. |
@@ -233,6 +238,79 @@ Without the webhook, or while it is down, Flux still polls the repository.
 [gatewayapi]: https://gateway-api.sigs.k8s.io/
 [roles]: https://gateway-api.sigs.k8s.io/concepts/roles-and-personas/
 [traefik]: https://doc.traefik.io/traefik/reference/install-configuration/providers/kubernetes/kubernetes-gateway/
+
+## Persistent volumes
+
+AKS's own StorageClasses put a volume's disk in the cluster's node resource group, which AKS deletes
+together with the cluster. `portable-disk` (`infrastructure/storage`) puts it in the **shared
+resource group** instead - `shared_resource_group_name`, the one aks-terraform keeps the Key Vault in
+and shares between the clusters that take workloads over from each other - so the disk outlives the
+cluster it was created in:
+
+- `StandardSSD_ZRS`: zone-redundant, so the disk attaches to a node in any zone of the region.
+- `reclaimPolicy: Retain`: deleting the PVC, or the cluster, never deletes the disk. A disk nobody
+  needs any more is deleted in Azure by hand.
+- Not the default class (AKS keeps `default` as that), so a workload that is to move names it:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+spec:
+  storageClassName: portable-disk
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 8Gi
+```
+
+## Moving a workload to another cluster
+
+`clusters/prototype` (aks-prototype-free) and `clusters/prototype-free-b` (aks-prototype-free-b) are
+two clusters on one Key Vault and one shared resource group. They run side by side on hostnames of
+their own - the second one's are the first's with `-b` appended - so the `example` team runs in both
+at once, reading the same secrets from the vault. Moving a workload from one to the other:
+
+1. **Secrets** need nothing: the namespace's share of the vault is the same in both clusters, and
+   each cluster's `key-vault` service account is federated with an identity of its own that reads it.
+2. **Volumes**: stop the workload in the old cluster, so the disk is detached - a `ReadWriteOnce`
+   disk attaches to one node at a time. The PV's `spec.csi.volumeHandle` is the disk's resource ID.
+   In the new cluster, bind the disk again with a PersistentVolume naming it, and a claim naming
+   that volume:
+
+   ```yaml
+   apiVersion: v1
+   kind: PersistentVolume
+   metadata:
+     name: example-data
+   spec:
+     capacity:
+       storage: 8Gi
+     accessModes: [ReadWriteOnce]
+     persistentVolumeReclaimPolicy: Retain
+     storageClassName: portable-disk
+     csi:
+       driver: disk.csi.azure.com
+       volumeHandle: /subscriptions/<subscription>/resourceGroups/<shared resource group>/providers/Microsoft.Compute/disks/<disk>
+   ---
+   apiVersion: v1
+   kind: PersistentVolumeClaim
+   metadata:
+     name: data
+     namespace: example
+   spec:
+     storageClassName: portable-disk
+     volumeName: example-data
+     accessModes: [ReadWriteOnce]
+     resources:
+       requests:
+         storage: 8Gi
+   ```
+
+3. **Hostnames**: swap the team's `example_hostname` and `example_internal_hostname` between the two
+   `cluster-settings.yaml` files. The old cluster's external-dns deletes the records it owned, and
+   the new one's publishes them; a record another cluster still owns is left alone until then.
 
 ## Tenants
 

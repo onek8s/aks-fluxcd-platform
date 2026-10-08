@@ -1,0 +1,168 @@
+# The cluster-wide controllers, reconciled as their own Flux Kustomization rather than straight from
+# this directory, so that whatever builds on them - the External Secrets stores, for one - can wait
+# for them with `dependsOn: [{ name: infra-controllers }]` and is never applied before its CRDs exist.
+#
+# `platform` is the GitRepository the AKS Flux extension creates for the cluster's Flux
+# configuration, which Terraform names `platform` and points at this directory.
+#
+# Each runs every 10 minutes, not only when the repository changes: cluster-settings.yaml is applied by
+# `platform`, the Kustomization above these, and one of these can build a new commit before
+# `platform` has applied that commit's settings - substituting a setting just added as nothing. The
+# next run puts it right; at 10 minutes, soon.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-controllers
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/controllers
+  prune: true
+  wait: true
+---
+# The configuration built on the controllers - the internal Gateway, its HTTP to HTTPS redirect and
+# the RBAC team routes need - with this cluster's own values filled in from cluster-settings.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-configs
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/configs
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# Traefik Proxy, which serves the internal Gateway and the public one of flux-webhook. On its own,
+# with nothing waiting for it and waiting for nothing: it needs no CRDs but the Gateway API's, which
+# AKS manages. Of this cluster's values it takes the webhook's hostname, for its public Service.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: traefik
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/traefik
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# external-dns, on its own: nothing waits for it, so a zone that is not set up yet - or an outage of
+# Azure DNS - keeps the hostnames from being published and holds back nothing else.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: external-dns
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/external-dns
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# The listener certificates, synced from Key Vault once `infra-configs` has created ingress-gateway
+# and External Secrets Operator is ready. Nothing waits for them either.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-certificates
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-configs
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/certificates
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# Flux's webhook receiver, published on the internet so a GitHub push reconciles the platform at once
+# (see infrastructure/flux-webhook). After External Secrets Operator is ready, for its SecretStore,
+# and after `infra-configs` has created the public Gateway its route attaches to. Nothing waits
+# for it: without it, Flux still polls.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-webhook
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+    - name: infra-configs
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/flux-webhook
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+# The StorageClass whose disks outlive the cluster, in the shared resource group (see
+# infrastructure/storage). On its own: nothing waits for it, and it waits for nothing.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: storage
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/storage
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
