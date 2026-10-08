@@ -9,14 +9,14 @@ else lives here.
 
 ```
 clusters/
-  prototype/              # aks-prototype-free
+  prototype-a/            # aks-prototype-a
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
                           # `infra-certificates`, `traefik`, `external-dns`, `flux-webhook`
                           # and `storage`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
-  prototype-free-b/       # aks-prototype-free-b: the same, beside it, for trying out moving
-                          # workloads between clusters - see "Moving a workload to another cluster"
+  prototype-b/            # aks-prototype-b: the same, beside it on the same shared resources -
+                          # see "Moving a workload to another cluster"
 infrastructure/
   controllers/            # cluster-wide controllers every cluster runs
     external-secrets/     # External Secrets Operator
@@ -194,7 +194,7 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id` | aks-terraform | The zone the hostnames are published in, and the identity that writes it. |
 | `internal_dns_zone_name`, `internal_dns_zone_resource_group_name`, `internal_dns_zone_subscription_id` | aks-terraform | The private zone the hostnames are also published in. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
-| `shared_resource_group_name` | aks-terraform | The resource group of what outlives the cluster - its Key Vault, and the disks of the `portable-disk` StorageClass. See [Persistent volumes](#persistent-volumes). |
+| `portable_disk_resource_group_name` | aks-terraform | Where the disks of the `portable-disk` StorageClass go: the resource group of the environment's clusters and shared resources, not the cluster's node resource group. See [Persistent volumes](#persistent-volumes). |
 | `gateway_certificate_name` | this repository | The Key Vault certificate every HTTPS listener serves, without its `ingress-gateway--` prefix: a wildcard for `*.<dns_zone_name>` and `*.<internal_dns_zone_name>`, issued by aks-terraform's Renew Certificate workflow. |
 | `example_hostname` | this repository | The hostname of the public `https-example` listener: one level below the zone's apex, which is all the wildcard covers. |
 | `example_internal_hostname` | this repository | The hostname of the `https-example-internal` listener, the same way in the private zone. |
@@ -224,7 +224,10 @@ listener, to notification-controller's `webhook-receiver`; nothing else of the r
   `flux-system--github-webhook-token`, which aks-terraform creates (`flux_github_webhook`) and External
   Secrets syncs into `flux-system/github-webhook-token`.
 
-The repository's webhook - Settings, Webhooks, Add webhook - is set once:
+The repository's webhook - Settings, Webhooks, Add webhook - is set once per cluster, each to the
+cluster's own `flux_webhook_hostname` (`flux-webhook-a`, `flux-webhook-b`). The prototype clusters
+read the same token from the shared vault, so their Receivers answer on the same path and both
+webhooks have the same secret:
 
 | | |
 | --- | --- |
@@ -243,10 +246,10 @@ Without the webhook, or while it is down, Flux still polls the repository.
 ## Persistent volumes
 
 AKS's own StorageClasses put a volume's disk in the cluster's node resource group, which AKS deletes
-together with the cluster. `portable-disk` (`infrastructure/storage`) puts it in the **shared
-resource group** instead - `shared_resource_group_name`, the one aks-terraform keeps the Key Vault in
-and shares between the clusters that take workloads over from each other - so the disk outlives the
-cluster it was created in:
+together with the cluster. `portable-disk` (`infrastructure/storage`) puts it in
+`portable_disk_resource_group_name` instead - the resource group the environment's clusters and
+their shared resources are in - so the disk outlives the cluster it was created in, and can be
+attached to the next one:
 
 - `StandardSSD_ZRS`: zone-redundant, so the disk attaches to a node in any zone of the region.
 - `reclaimPolicy: Retain`: deleting the PVC, or the cluster, never deletes the disk. A disk nobody
@@ -277,15 +280,16 @@ spec:
 The `example` team's `boot-log` app (olljanat-ai/aks-fluxcd-example) is a volume to try this on;
 its README walks through moving it.
 
-`clusters/prototype` (aks-prototype-free) and `clusters/prototype-free-b` (aks-prototype-free-b) are
-two clusters on one Key Vault and one shared resource group. They run side by side on hostnames of
-their own - the second one's are the first's with `-b` appended - so the `example` team runs in both
-at once, reading the same secrets from the vault. Moving a workload from one to the other:
+`clusters/prototype-a` (aks-prototype-a) and `clusters/prototype-b` (aks-prototype-b) are the
+prototype environment's two clusters, on its shared Key Vault and DNS zones (aks-terraform,
+`shared/`). Their platform hostnames are their own - `-a` and `-b` - and the `example` team runs in
+both at once: on its stable name, `hello.onek8s.lol`, in aks-prototype-a, and as `hello-b` in
+aks-prototype-b. Moving a workload from one to the other:
 
 1. **Secrets** need nothing: the namespace is the same identity in both clusters -
-   `id-<key vault>-<namespace>`, in the shared resource group, with one federated credential per
-   cluster for the namespace's `key-vault` service account - so it reads the same share of the vault
-   with the same client ID, and keeps whatever else that identity has been granted.
+   `id-<region>-<environment>-shared-kv-<namespace>`, with a federated credential per cluster for
+   the namespace's `key-vault` service account - so it reads the same share of the vault with the
+   same client ID, and keeps whatever else that identity has been granted.
 2. **Volumes**: stop the workload in the old cluster, so the disk is detached - a `ReadWriteOnce`
    disk attaches to one node at a time. The PV's `spec.csi.volumeHandle` is the disk's resource ID.
    In the new cluster, bind the disk again with a PersistentVolume naming it, and a claim naming
@@ -304,7 +308,7 @@ at once, reading the same secrets from the vault. Moving a workload from one to 
      storageClassName: portable-disk
      csi:
        driver: disk.csi.azure.com
-       volumeHandle: /subscriptions/<subscription>/resourceGroups/<shared resource group>/providers/Microsoft.Compute/disks/<disk>
+       volumeHandle: /subscriptions/<subscription>/resourceGroups/rg-aks-prototype/providers/Microsoft.Compute/disks/<disk>
    ---
    apiVersion: v1
    kind: PersistentVolumeClaim
@@ -320,9 +324,11 @@ at once, reading the same secrets from the vault. Moving a workload from one to 
          storage: 8Gi
    ```
 
-3. **Hostnames**: swap the team's `example_hostname` and `example_internal_hostname` between the two
-   `cluster-settings.yaml` files. The old cluster's external-dns deletes the records it owned, and
-   the new one's publishes them; a record another cluster still owns is left alone until then.
+3. **Hostnames**: move the team's stable name. In the new cluster's `cluster-settings.yaml`, set
+   `example_hostname` and `example_internal_hostname` to `hello.onek8s.lol` and
+   `hello.internal.onek8s.lol`; in the old one's, to that cluster's own (`hello-a`, `hello-b`). The
+   old cluster's external-dns deletes the records it owned, and the new one's publishes them; a
+   record another cluster still owns is left alone until then.
 
 ## Tenants
 

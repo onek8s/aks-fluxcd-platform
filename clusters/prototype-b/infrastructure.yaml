@@ -145,7 +145,7 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# The StorageClass whose disks outlive the cluster, in the shared resource group (see
+# The StorageClass whose disks outlive the cluster, outside its node resource group (see
 # infrastructure/storage). On its own: nothing waits for it, and it waits for nothing.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

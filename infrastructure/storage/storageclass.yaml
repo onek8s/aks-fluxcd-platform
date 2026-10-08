@@ -2,10 +2,10 @@
 #
 # AKS's own StorageClasses (`default`, `managed-csi`, ...) put a volume's disk in the node resource
 # group, which AKS deletes together with the cluster - the data with it. This one puts it in
-# ${shared_resource_group_name}, the resource group aks-terraform shares between the clusters that
-# take workloads over from each other (shared_resource_group_name there), next to their Key Vault.
-# aks-terraform grants each cluster's identity Contributor on that group, which is what the Azure
-# Disk CSI driver needs to create a disk there and attach it.
+# ${portable_disk_resource_group_name}, the resource group the environment's clusters and their shared
+# resources are in (aks-terraform, portable_disks_enabled). aks-terraform grants each cluster's
+# identity a role of its own there for disks and snapshots, which the Azure Disk CSI driver needs to
+# create a disk outside the node resource group.
 #
 #   - StandardSSD_ZRS: a zone-redundant disk attaches to a node in any zone of the region, so the
 #     cluster it moves to need not have its nodes where the first one had them.
@@ -24,7 +24,7 @@ metadata:
 provisioner: disk.csi.azure.com
 parameters:
   skuName: StandardSSD_ZRS
-  resourceGroup: ${shared_resource_group_name}
+  resourceGroup: ${portable_disk_resource_group_name}
 reclaimPolicy: Retain
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
