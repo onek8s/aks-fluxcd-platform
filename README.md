@@ -28,7 +28,8 @@ infrastructure/
   external-dns/           # external-dns, publishing the listener hostnames in Azure DNS and
                           # Azure Private DNS
   flux-webhook/           # Flux's GitHub webhook receiver, on a public Gateway
-  storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
+  storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster, and
+                          # the admission policy that makes it the only storage users get
 tenants/
   example/                # what the `example` team needs in its namespace; its repository,
                           # olljanat-ai/aks-fluxcd-example, is synced by aks-terraform's Flux
@@ -250,7 +251,13 @@ cluster it was created in:
 - `StandardSSD_ZRS`: zone-redundant, so the disk attaches to a node in any zone of the region.
 - `reclaimPolicy: Retain`: deleting the PVC, or the cluster, never deletes the disk. A disk nobody
   needs any more is deleted in Azure by hand.
-- Not the default class (AKS keeps `default` as that), so a workload that is to move names it:
+- **The only storage in the users' namespaces.** The `portable-storage-only`
+  ValidatingAdmissionPolicy refuses a PersistentVolumeClaim on any other class - or on none, which
+  the API server would turn into AKS's `default` - and a pod with an inline `csi` volume. Every
+  namespace is a user's but Kubernetes' and AKS's (`kube-*`) and the platform's own (`flux-system`,
+  `external-secrets`, `external-dns`, `traefik`, `ingress-gateway`), listed in the binding in
+  `infrastructure/storage/admission-policy.yaml`. Only creation is checked.
+- Not the default class (AKS keeps `default` as that), so a claim names it:
 
 ```yaml
 apiVersion: v1
@@ -266,6 +273,9 @@ spec:
 ```
 
 ## Moving a workload to another cluster
+
+The `example` team's `boot-log` app (olljanat-ai/aks-fluxcd-example) is a volume to try this on;
+its README walks through moving it.
 
 `clusters/prototype` (aks-prototype-free) and `clusters/prototype-free-b` (aks-prototype-free-b) are
 two clusters on one Key Vault and one shared resource group. They run side by side on hostnames of
