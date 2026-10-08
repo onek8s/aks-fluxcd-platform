@@ -144,25 +144,6 @@ spec:
     substituteFrom:
       - kind: ConfigMap
         name: cluster-settings
----
-# The StorageClass whose disks outlive the cluster, outside its node resource group (see
-# infrastructure/storage). On its own: nothing waits for it, and it waits for nothing.
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: storage
-  namespace: flux-system
-spec:
-  interval: 10m
-  retryInterval: 1m
-  timeout: 5m
-  sourceRef:
-    kind: GitRepository
-    name: platform
-  path: ./infrastructure/storage
-  prune: true
-  wait: true
-  postBuild:
-    substituteFrom:
-      - kind: ConfigMap
-        name: cluster-settings
+# No `storage` Kustomization: aks-prototype-b is stateless. AKS runs none of its CSI drivers here
+# (aks-terraform, envs/prototype-b.tfvars: persistent_storage_enabled = false), so there is no
+# `portable-disk` StorageClass (infrastructure/storage) for a volume to come from.
