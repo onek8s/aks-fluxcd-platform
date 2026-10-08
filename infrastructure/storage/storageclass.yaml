@@ -1,0 +1,30 @@
+# Azure Disks that outlive the cluster, for a workload that is to be moved to another one.
+#
+# AKS's own StorageClasses (`default`, `managed-csi`, ...) put a volume's disk in the node resource
+# group, which AKS deletes together with the cluster - the data with it. This one puts it in
+# ${shared_resource_group_name}, the resource group aks-terraform shares between the clusters that
+# take workloads over from each other (shared_resource_group_name there), next to their Key Vault.
+# aks-terraform grants each cluster's identity Contributor on that group, which is what the Azure
+# Disk CSI driver needs to create a disk there and attach it.
+#
+#   - StandardSSD_ZRS: a zone-redundant disk attaches to a node in any zone of the region, so the
+#     cluster it moves to need not have its nodes where the first one had them.
+#   - Retain: deleting the PVC - or the whole cluster - leaves the disk where it is. The cluster that
+#     takes the workload over binds it again with a PersistentVolume naming the disk's resource ID;
+#     see the README, "Persistent volumes". A disk no longer wanted is deleted in Azure by hand.
+#   - WaitForFirstConsumer: the disk is created once a pod is scheduled, in a zone that pod can use.
+#
+# It is not the default class - AKS keeps `default` as that and puts it back if changed - so a PVC
+# that is to move names `storageClassName: portable-disk`. One that names nothing gets a disk that
+# is deleted with the cluster.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: portable-disk
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: StandardSSD_ZRS
+  resourceGroup: ${shared_resource_group_name}
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
