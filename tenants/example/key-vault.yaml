@@ -2,9 +2,11 @@
 # others - see infrastructure/certificates/secret-store.yaml for how. The service account's name is
 # part of the federation aks-terraform makes, so it cannot change.
 #
-# The team holds `admin` in the namespace, so it can add ExternalSecrets of its own against this
-# store - or SecretStores of its own naming this service account - and read its own secrets with
-# them. The team's writers can put secrets under the prefix in the vault themselves.
+# The platform syncs nothing for the team from here: its manifests and images come from the
+# environment's container registry, read without a secret. The team holds `admin` in the namespace,
+# so it can add ExternalSecrets of its own against this store - or SecretStores of its own naming
+# this service account - and read its own secrets with them. The team's writers can put secrets
+# under the prefix in the vault themselves.
 #
 # The `${...}` values come from aks-terraform, through cluster-settings.
 apiVersion: v1
@@ -28,52 +30,3 @@ spec:
       vaultUrl: ${key_vault_url}
       serviceAccountRef:
         name: key-vault
----
-# The read-only token Flux reads the team's repository with: Key Vault secret
-# `example--aks-fluxcd-example-git`, as the basic auth Secret the namespace's Flux configuration
-# names (aks-terraform, managed_namespaces.example.flux.secret_name).
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: aks-fluxcd-example-git
-  namespace: example
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: SecretStore
-    name: key-vault
-  target:
-    name: aks-fluxcd-example-git
-    template:
-      engineVersion: v2
-      data:
-        username: git
-        password: '{{ .token }}'
-  data:
-    - secretKey: token
-      remoteRef:
-        key: secret/example--aks-fluxcd-example-git
----
-# Pull access to the team's images while their GHCR packages are private: Key Vault secret
-# `example--ghcr-pull`, a Docker config JSON, as the `ghcr-pull` Secret the deployments name.
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: ghcr-pull
-  namespace: example
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: SecretStore
-    name: key-vault
-  target:
-    name: ghcr-pull
-    template:
-      type: kubernetes.io/dockerconfigjson
-      engineVersion: v2
-      data:
-        .dockerconfigjson: '{{ .dockerconfigjson }}'
-  data:
-    - secretKey: dockerconfigjson
-      remoteRef:
-        key: secret/example--ghcr-pull
