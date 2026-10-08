@@ -15,8 +15,8 @@ clusters/
                           # `infra-certificates`, `traefik`, `external-dns`, `flux-webhook`
                           # and `storage`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
-  prototype-b/            # aks-prototype-b: the same, beside it on the same shared resources -
-                          # see "Moving a workload to another cluster"
+  prototype-b/            # aks-prototype-b: the same, beside it on the same shared resources,
+                          # but stateless - no `storage` - see "Stateless clusters"
 infrastructure/
   controllers/            # cluster-wide controllers every cluster runs
     external-secrets/     # External Secrets Operator
@@ -275,10 +275,23 @@ spec:
       storage: 8Gi
 ```
 
+## Stateless clusters
+
+aks-prototype-b has no persistent storage at all. AKS runs none of its CSI drivers there - Azure
+Disk, Azure Files, Azure Blob - nor the snapshot controller (aks-terraform,
+`persistent_storage_enabled = false`), so the cluster has no StorageClass of AKS's and a claim has
+nothing to be provisioned from. `clusters/prototype-b` leaves out the `storage` Kustomization - no
+`portable-disk`, no `portable-storage-only` policy - and `portable_disk_resource_group_name`, which
+aks-terraform does not send.
+
+Only workloads that keep no state run there. The `example` team's Flux configuration syncs
+`stateless/` of its repository on aks-prototype-b rather than `apps/`: aks-hello, without boot-log.
+
 ## Moving a workload to another cluster
 
 The `example` team's `boot-log` app (olljanat-ai/aks-fluxcd-example) is a volume to try this on;
-its README walks through moving it.
+its README walks through moving it. The volume steps need a cluster with portable disks on both
+ends - aks-prototype-b is [stateless](#stateless-clusters), so it takes stateless workloads only.
 
 `clusters/prototype-a` (aks-prototype-a) and `clusters/prototype-b` (aks-prototype-b) are the
 prototype environment's two clusters, on its shared Key Vault and DNS zones (aks-terraform,
