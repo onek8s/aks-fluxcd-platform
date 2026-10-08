@@ -1,6 +1,6 @@
-# What the team's repository is applied as. Flux impersonates this service account, so the repository
-# can do what the `admin` role allows inside `example` - including its HTTPRoutes, see
-# infrastructure/configs/gateway-api-rbac.yaml - and nothing outside it.
+# RETIRED with sync.yaml, which is the only thing still naming it: the namespace's own Flux
+# configuration applies the team's repository as the extension's `flux-applier` instead. Delete
+# this file together with sync.yaml.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

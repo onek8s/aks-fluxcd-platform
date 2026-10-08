@@ -1,34 +1,37 @@
-# The team's repository, synced into its own namespace. The AKS Flux extension refuses references
-# across namespaces, so the source sits next to the Kustomization that reads it.
+# RETIRED. The team's repository is now synced by a Flux configuration of its own that aks-terraform
+# creates in this namespace (managed_namespaces.example.flux), which shows its status in the
+# portal's GitOps view. These two objects are kept, suspended, for one release only:
 #
-# The repository is private. `aks-fluxcd-example-git` holds a read-only token for it, synced from Key
-# Vault by key-vault.yaml - see the README; Git is no place for it.
+# - `suspend` stops them, so they no longer apply the repository alongside the new configuration.
+# - `prune: false` makes deleting the Kustomization later a no-op for what it applied. Deleted while
+#   still pruning, it would garbage-collect every object it last applied - the team's running
+#   Deployment included - whenever it had applied them after the new configuration.
+#
+# Delete this file, and flux-reconciler in rbac.yaml, once the new configuration is Ready.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:
   name: aks-fluxcd-example
   namespace: example
 spec:
+  suspend: true
   interval: 5m
   url: https://github.com/olljanat-ai/aks-fluxcd-example
   ref:
     branch: main
   secretRef:
     name: aks-fluxcd-example-git
-  # Only the manifests are of any interest to the cluster.
   ignore: |
     /*
     !/apps/
 ---
-# `targetNamespace` puts everything in `example` whatever the manifests say, and the service account
-# keeps it there even if they try otherwise. `wait` holds the Kustomization not-ready until the apps
-# have rolled out.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: apps
   namespace: example
 spec:
+  suspend: true
   interval: 10m
   retryInterval: 1m
   timeout: 5m
@@ -38,5 +41,5 @@ spec:
   path: ./apps
   targetNamespace: example
   serviceAccountName: flux-reconciler
-  prune: true
+  prune: false
   wait: true

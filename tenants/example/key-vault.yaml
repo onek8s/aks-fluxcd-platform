@@ -30,7 +30,8 @@ spec:
         name: key-vault
 ---
 # The read-only token Flux reads the team's repository with: Key Vault secret
-# `example--aks-fluxcd-example-git`, as the basic auth Secret sync.yaml names.
+# `example--aks-fluxcd-example-git`, as the basic auth Secret the namespace's Flux configuration
+# names (aks-terraform, managed_namespaces.example.flux.secret_name).
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
