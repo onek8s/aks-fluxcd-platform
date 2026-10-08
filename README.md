@@ -282,8 +282,10 @@ two clusters on one Key Vault and one shared resource group. They run side by si
 their own - the second one's are the first's with `-b` appended - so the `example` team runs in both
 at once, reading the same secrets from the vault. Moving a workload from one to the other:
 
-1. **Secrets** need nothing: the namespace's share of the vault is the same in both clusters, and
-   each cluster's `key-vault` service account is federated with an identity of its own that reads it.
+1. **Secrets** need nothing: the namespace is the same identity in both clusters -
+   `id-<key vault>-<namespace>`, in the shared resource group, with one federated credential per
+   cluster for the namespace's `key-vault` service account - so it reads the same share of the vault
+   with the same client ID, and keeps whatever else that identity has been granted.
 2. **Volumes**: stop the workload in the old cluster, so the disk is detached - a `ReadWriteOnce`
    disk attaches to one node at a time. The PV's `spec.csi.volumeHandle` is the disk's resource ID.
    In the new cluster, bind the disk again with a PersistentVolume naming it, and a claim naming
