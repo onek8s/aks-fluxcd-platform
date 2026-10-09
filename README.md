@@ -89,10 +89,10 @@ account on every read, so an `ExternalSecret` in a namespace reads that namespac
 | --- | --- | --- |
 | `ingress-gateway` | `ingress-gateway--<gateway_certificate_name>` - a wildcard certificate for both zones | `gateway-tls`, the certificate of every HTTPS listener |
 | `flux-system` | `flux-system--github-webhook-token` - created by aks-terraform | `github-webhook-token`, the token Flux's GitHub Receiver checks deliveries against |
+| `example` | `example--aks-fluxcd-example-git` - a read-only token for the team's repository | `aks-fluxcd-example-git`, for Flux |
 
-The `example` namespace has a share of the vault and a `key-vault` store, but syncs nothing from it
-itself: its manifests and images come from the environment's container registry, read without a
-secret - see "Secrets a tenant needs".
+The team's images need no secret: they are in the environment's container registry, pulled as the
+cluster's kubelet identity - see "Secrets a tenant needs".
 
 The names of every secret can be listed by every identity with a share - only values are kept apart
 - so no secret goes in a name. The cluster's admin groups run the whole vault; a team namespace's
@@ -388,16 +388,23 @@ Ready, and are deleted after that - see the comment in `sync.yaml`.
 
 | Team | Namespace | Repository | Listener |
 | --- | --- | --- | --- |
-| example | `example` | [olljanat-ai/aks-fluxcd-example](https://github.com/olljanat-ai/aks-fluxcd-example), as `oci://acrsecprototypeshared.azurecr.io/manifests/aks-fluxcd-example:main` (`apps/` on aks-prototype-a, `stateless/` on aks-prototype-b) | `https-example`, `https-example-internal` |
+| example | `example` | [olljanat-ai/aks-fluxcd-example](https://github.com/olljanat-ai/aks-fluxcd-example) (`apps/` on aks-prototype-a, `stateless/` on aks-prototype-b) | `https-example`, `https-example-internal` |
 
 ### Secrets a tenant needs
 
-None to deploy. The team's repository is published as an OCI artifact in the environment's Azure
-Container Registry (aks-terraform, `shared/`: `container_registry_name`), and its images are pushed
-there too. Each cluster reads both as identities of its own with `AcrPull` - the Flux
-source-controller's through workload identity for the manifests (`managed_namespaces.<team>.flux.url
-= "oci://..."` in aks-terraform), the kubelet's for the images - so no token or pull secret is kept
-anywhere, and nothing can expire.
+The team's repository is private, and Git is no place for its credentials. The token Flux reads it
+with is kept in the namespace's share of the Key Vault - by an admin, or by the team's own writers -
+and synced from there. The name matters: the namespace's identity reads only the secrets under its
+`example--` prefix.
+
+```sh
+# Read-only token (fine-grained, `Contents: read`) for the team's repository, for Flux.
+az keyvault secret set --vault-name <key vault> --name example--aks-fluxcd-example-git --value github_pat_...
+```
+
+The images need nothing: they are in the environment's Azure Container Registry (aks-terraform,
+`shared/`: `container_registry_name`), and each cluster pulls them as its kubelet identity, which has
+`AcrPull` there - no image pull secret.
 
 A team keeps its own secrets the same way, as `<namespace>--<name>`, and syncs them with an
 `ExternalSecret` of its own against the namespace's `key-vault` store.
