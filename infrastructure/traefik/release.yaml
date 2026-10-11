@@ -115,7 +115,8 @@ spec:
     service:
       type: LoadBalancer
       annotations:
-        service.beta.kubernetes.io/azure-load-balancer-internal: "${dns_zone_private}"
+        # ${quote}...${quote}: "true" / "false" has to stay a string after substitution.
+        service.beta.kubernetes.io/azure-load-balancer-internal: ${quote}${dns_zone_private}${quote}
         external-dns.kubernetes.io/hostname: ${public_hostname}
       spec:
         # Keeps the client's address, rather than the node's, on the requests Traefik sees - and only
