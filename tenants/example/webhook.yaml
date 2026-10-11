@@ -1,0 +1,44 @@
+# GitHub's push webhook of the team's repository, onek8s/aks-fluxcd-example: a Receiver in the team's
+# own namespace - the AKS Flux extension refuses references across namespaces, so flux-system's
+# Receiver cannot reconcile the team's GitRepository. It reconciles `example`, the GitRepository of
+# the namespace's Flux configuration (aks-terraform, managed_namespaces.example.flux), at once on a
+# push instead of at the next poll.
+#
+# notification-controller serves every Receiver on the same service, so the platform's route to it
+# (infrastructure/flux-webhook) reaches this one too, on its own path:
+# /hook/sha256(token + "github" + "example"). The token is the same as flux-system's, in the
+# namespace's share of the vault as `example--github-webhook-token` (aks-terraform, shared/:
+# flux_github_webhook_namespaces). aks-terraform's Flux webhooks workflow sets the webhooks.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: github-webhook-token
+  namespace: example
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: key-vault
+  target:
+    name: github-webhook-token
+  data:
+    - secretKey: token
+      remoteRef:
+        key: secret/example--github-webhook-token
+---
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Receiver
+metadata:
+  name: github
+  namespace: example
+spec:
+  type: github
+  events:
+    - ping
+    - push
+  secretRef:
+    name: github-webhook-token
+  resources:
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: GitRepository
+      name: example
