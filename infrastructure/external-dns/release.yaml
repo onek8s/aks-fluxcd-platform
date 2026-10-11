@@ -54,6 +54,8 @@ spec:
       - "${dns_zone_name}"
     excludeDomains:
       - "${internal_dns_zone_name}"
+      # Served by every stateless cluster at once; its record is aks-terraform's Traffic Manager CNAME.
+      - "${example_global_hostname}"
     # Records it created and that are no longer wanted are deleted; records it did not create - no
     # TXT record with this owner beside them - are never touched.
     policy: sync

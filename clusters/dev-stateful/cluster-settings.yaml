@@ -1,17 +1,16 @@
 # The values that make this cluster's configuration its own, handed to the Flux Kustomizations
 # through `postBuild.substituteFrom`.
 #
-# aks-prototype-a: one of the prototype environment's two clusters, beside aks-prototype-b
-# (clusters/prototype-b). Both read the environment's shared Key Vault and publish in its shared
-# zones (aks-terraform, shared/envs/prototype.tfvars), so they serve the same wildcard certificate,
-# their namespaces read the same secrets as the same identities, and a `portable-disk` volume can be
-# moved between them.
+# aks-dev-stateful: the OneK8s dev environment's stateful cluster, beside the stateless ones
+# (clusters/dev-stateless-az1, clusters/dev-stateless-az2). All read the environment's shared Key
+# Vault and publish in its shared zones (aks-terraform, shared/envs/dev.tfvars), so they serve the
+# same wildcard certificate, their namespaces read the same secrets as the same identities, and a
+# workload can move between them. Defined, not deployed for now.
 #
-# The hostnames below are this cluster's own: the platform's carry `-a` (traefik-a, public-a,
-# flux-webhook-a), so the two clusters never contend for a DNS record. The `example` team's stable
-# name, hello.onek8s.lol, is on whichever cluster runs the team - this one, for now; aks-prototype-b
-# serves it as hello-b. Moving the team is moving that name - see the README, "Moving a workload to
-# another cluster".
+# The hostnames below are this cluster's own and carry its name (traefik-dev-stateful,
+# public-dev-stateful, flux-webhook-dev-stateful, hello-dev-stateful), so the clusters never contend
+# for a DNS record. example_global_hostname, hello.onek8s.lol, is served by every stateless cluster
+# behind aks-terraform's Traffic Manager; this cluster serves it too, but is not one of its endpoints.
 #
 # The `${...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives the
 # facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
@@ -55,18 +54,23 @@ data:
   # Set here. The hostname the `example` team is published on, on the internet, which has to be one
   # level below dns_zone_name - the wildcard covers no deeper - and the same in
   # internal_dns_zone_name, inside the network.
-  example_hostname: "hello.onek8s.lol"
-  example_internal_hostname: "hello.internal.onek8s.lol"
+  example_hostname: "hello-dev-stateful.onek8s.lol"
+  example_internal_hostname: "hello-dev-stateful.internal.onek8s.lol"
+  # Set here. The hostname every stateless cluster serves the `example` team on at once, on the
+  # internet - also one level below dns_zone_name, for the wildcard. Its record is not this
+  # cluster's: aks-terraform keeps it as a CNAME to a Traffic Manager profile over the clusters'
+  # public_hostname, and external-dns is told to leave it alone.
+  example_global_hostname: "hello.onek8s.lol"
 
   # Set here. The hostnames Traefik's dashboard is published on, in the two zones the same way. The
   # dashboard asks for no authentication: on the public hostname anyone on the internet can read it -
   # a prototype's choice.
-  traefik_hostname: "traefik-a.onek8s.lol"
-  traefik_internal_hostname: "traefik-a.internal.onek8s.lol"
+  traefik_hostname: "traefik-dev-stateful.onek8s.lol"
+  traefik_internal_hostname: "traefik-dev-stateful.internal.onek8s.lol"
 
   # Set here. The name of the cluster's public IP - Traefik's `traefik-public` Service - in
   # dns_zone_name: an A record that every public hostname above and below is a CNAME to.
-  public_hostname: "public-a.onek8s.lol"
+  public_hostname: "public-dev-stateful.onek8s.lol"
   # Set here. The hostname Flux's webhook receiver is published on, in dns_zone_name (one level below
   # it, for the wildcard certificate). GitHub's webhook for the platform repository points at it.
-  flux_webhook_hostname: "flux-webhook-a.onek8s.lol"
+  flux_webhook_hostname: "flux-webhook-dev-stateful.onek8s.lol"

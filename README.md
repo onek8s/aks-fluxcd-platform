@@ -1,7 +1,10 @@
-# aks-fluxcd
+# aks-fluxcd-platform
 
-What Flux deploys into the AKS clusters built by
-[aks-terraform](https://github.com/olljanat-ai/aks-terraform). Terraform installs the AKS Flux
+What Flux deploys into every cluster of [OneK8s](https://onek8s.github.io/) - one Kubernetes platform
+for every cloud - built today as AKS clusters by
+[aks-terraform](https://github.com/onek8s/aks-terraform). Everything here is plain Kubernetes, Flux,
+Helm and the Gateway API; only the few Azure facts in each cluster's `cluster-settings.yaml` (vault,
+zones, identities) tie it to a cloud. Terraform installs the AKS Flux
 extension and a Flux configuration named `platform` that points at `clusters/<cluster>`; everything
 else lives here.
 
@@ -9,15 +12,15 @@ else lives here.
 
 ```
 clusters/
-  prototype-a/            # aks-prototype-a
+  dev-stateful/           # aks-dev-stateful (defined, not deployed for now)
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
                           # `infra-certificates`, `traefik`, `external-dns`, `flux-webhook`
                           # and `storage`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
-  prototype-b/            # aks-prototype-b: the same, beside it on the same shared resources,
-                          # but stateless - `stateless` instead of `storage` - see
-                          # "Stateless clusters"
+  dev-stateless-az1/      # aks-dev-stateless-az1: the same, beside it on the same shared
+  dev-stateless-az2/      # resources, but stateless - `stateless` instead of `storage` - see
+                          # "Stateless clusters"; both serve hello.onek8s.lol at once
 infrastructure/
   controllers/            # cluster-wide controllers every cluster runs
     external-secrets/     # External Secrets Operator
@@ -35,7 +38,7 @@ infrastructure/
                           # the admission policy that makes it the only storage users get
 tenants/
   example/                # what the `example` team needs in its namespace; its repository,
-                          # olljanat-ai/aks-fluxcd-example, is synced by aks-terraform's Flux
+                          # onek8s/aks-fluxcd-example, is synced by aks-terraform's Flux
                           # configuration `example`
 ```
 
@@ -230,9 +233,9 @@ listener, to notification-controller's `webhook-receiver`; nothing else of the r
   Secrets syncs into `flux-system/github-webhook-token`.
 
 The repository's webhook - Settings, Webhooks, Add webhook - is set once per cluster, each to the
-cluster's own `flux_webhook_hostname` (`flux-webhook-a`, `flux-webhook-b`). The prototype clusters
-read the same token from the shared vault, so their Receivers answer on the same path and both
-webhooks have the same secret:
+cluster's own `flux_webhook_hostname` (`flux-webhook-dev-stateless-az1`, `flux-webhook-dev-stateless-az2`,
+...). The dev clusters read the same token from the shared vault, so their Receivers answer on the
+same path and all the webhooks have the same secret:
 
 | | |
 | --- | --- |
@@ -282,10 +285,10 @@ spec:
 
 ## Stateless clusters
 
-aks-prototype-b has no persistent storage at all. AKS runs none of its CSI drivers there - Azure
+aks-dev-stateless-az1 and aks-dev-stateless-az2 have no persistent storage at all. AKS runs none of its CSI drivers there - Azure
 Disk, Azure Files, Azure Blob - nor the snapshot controller (aks-terraform,
 `persistent_storage_enabled = false`), so the cluster has no StorageClass of AKS's and a claim has
-nothing to be provisioned from. `clusters/prototype-b` leaves out the `storage` Kustomization - no
+nothing to be provisioned from. `clusters/dev-stateless-az<N>` leaves out the `storage` Kustomization - no
 `portable-disk`, no `portable-storage-only` policy - and `portable_disk_resource_group_name`, which
 aks-terraform does not send.
 
@@ -302,19 +305,31 @@ kubectl delete storageclass default managed-csi-premium-v2
 ```
 
 Only workloads that keep no state run there. The `example` team's Flux configuration syncs
-`stateless/` of its repository on aks-prototype-b rather than `apps/`: aks-hello, without boot-log.
+`stateless/` of its repository on the stateless clusters rather than `apps/`: aks-hello, without
+boot-log.
+
+### One hostname on every stateless cluster
+
+`hello.onek8s.lol` is served by both stateless clusters at once. Each cluster's public Gateway has a
+listener for it, `https-example-global` (`example_global_hostname` in `cluster-settings.yaml`), next
+to the cluster's own `https-example` (`hello-dev-stateless-az<N>.onek8s.lol`), and aks-hello's route
+attaches to both. The record of the global name is not a cluster's: aks-terraform keeps it as a CNAME
+to an Azure Traffic Manager profile (`shared/`, `global_hostnames`) whose endpoints are the clusters'
+`public_hostname`s, weighted alike, with an HTTPS probe of `/healthz` on the global name - so DNS hands
+out one cluster or the other, and leaves out one that stops answering. external-dns is told to leave
+the name alone (`excludeDomains`). The page says which cluster answered.
 
 ## Moving a workload to another cluster
 
-The `example` team's `boot-log` app (olljanat-ai/aks-fluxcd-example) is a volume to try this on;
+The `example` team's `boot-log` app (onek8s/aks-fluxcd-example) is a volume to try this on;
 its README walks through moving it. The volume steps need a cluster with portable disks on both
-ends - aks-prototype-b is [stateless](#stateless-clusters), so it takes stateless workloads only.
+ends - aks-dev-stateless-az1 is [stateless](#stateless-clusters), so it takes stateless workloads only.
 
-`clusters/prototype-a` (aks-prototype-a) and `clusters/prototype-b` (aks-prototype-b) are the
-prototype environment's two clusters, on its shared Key Vault and DNS zones (aks-terraform,
-`shared/`). Their platform hostnames are their own - `-a` and `-b` - and the `example` team runs in
-both at once: on its stable name, `hello.onek8s.lol`, in aks-prototype-a, and as `hello-b` in
-aks-prototype-b. Moving a workload from one to the other:
+`clusters/dev-stateful`, `clusters/dev-stateless-az1` and `clusters/dev-stateless-az2` are the dev
+environment's clusters, on its shared Key Vault and DNS zones (aks-terraform, `shared/`). Their
+platform hostnames are their own - they carry the cluster's name - and the `example` team runs in
+every one at once, each under `hello-<cluster>`, with the stable name `hello.onek8s.lol` on the
+stateless ones behind Traffic Manager. Moving a workload from one to another:
 
 1. **Secrets** need nothing: the namespace is the same identity in both clusters -
    `id-<region>-<environment>-shared-kv-<namespace>`, with a federated credential per cluster for
@@ -338,7 +353,7 @@ aks-prototype-b. Moving a workload from one to the other:
      storageClassName: portable-disk
      csi:
        driver: disk.csi.azure.com
-       volumeHandle: /subscriptions/<subscription>/resourceGroups/rg-aks-prototype/providers/Microsoft.Compute/disks/<disk>
+       volumeHandle: /subscriptions/<subscription>/resourceGroups/rg-aks-dev/providers/Microsoft.Compute/disks/<disk>
    ---
    apiVersion: v1
    kind: PersistentVolumeClaim
@@ -354,11 +369,10 @@ aks-prototype-b. Moving a workload from one to the other:
          storage: 8Gi
    ```
 
-3. **Hostnames**: move the team's stable name. In the new cluster's `cluster-settings.yaml`, set
-   `example_hostname` and `example_internal_hostname` to `hello.onek8s.lol` and
-   `hello.internal.onek8s.lol`; in the old one's, to that cluster's own (`hello-a`, `hello-b`). The
-   old cluster's external-dns deletes the records it owned, and the new one's publishes them; a
-   record another cluster still owns is left alone until then.
+3. **Hostnames**: the stable name is a Traffic Manager endpoint list, not a record of a cluster's:
+   add the new cluster's `public_hostname` to `global_hostnames` in aks-terraform's `shared/`, and
+   remove the old one's once it is drained. The cluster's own names (`hello-<cluster>`) come and go
+   with it.
 
 ## Tenants
 
@@ -388,7 +402,7 @@ Ready, and are deleted after that - see the comment in `sync.yaml`.
 
 | Team | Namespace | Repository | Listener |
 | --- | --- | --- | --- |
-| example | `example` | [olljanat-ai/aks-fluxcd-example](https://github.com/olljanat-ai/aks-fluxcd-example) (`apps/` on aks-prototype-a, `stateless/` on aks-prototype-b) | `https-example`, `https-example-internal` |
+| example | `example` | [onek8s/aks-fluxcd-example](https://github.com/onek8s/aks-fluxcd-example) (`apps/` on aks-dev-stateful, `stateless/` on aks-dev-stateless-az1) | `https-example`, `https-example-internal` |
 
 ### Secrets a tenant needs
 
