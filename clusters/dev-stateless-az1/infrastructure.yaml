@@ -25,7 +25,7 @@ spec:
   prune: true
   wait: true
 ---
-# The configuration built on the controllers - the internal Gateway, its HTTP to HTTPS redirect and
+# The configuration built on the controllers - the Gateway, its HTTP to HTTPS redirect and
 # the RBAC team routes need - with this cluster's own values filled in from cluster-settings.yaml.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -49,7 +49,7 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# Traefik Proxy, which serves the internal Gateway and the public one of flux-webhook. On its own,
+# Traefik Proxy, which serves the Gateway - the apps', the dashboard's and flux-webhook's. On its own,
 # with nothing waiting for it and waiting for nothing: it needs no CRDs but the Gateway API's, which
 # AKS manages. Of this cluster's values it takes the webhook's hostname, for its public Service.
 apiVersion: kustomize.toolkit.fluxcd.io/v1

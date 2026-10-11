@@ -1,5 +1,5 @@
 # The namespace accepts connections from its own pods only. This lets in Traefik, which serves the
-# internal Gateway the team's routes attach to, to any pod of the namespace - Traefik only ever
+# Gateway the team's routes attach to, to any pod of the namespace - Traefik only ever
 # connects to the backends the namespace's own HTTPRoutes name.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

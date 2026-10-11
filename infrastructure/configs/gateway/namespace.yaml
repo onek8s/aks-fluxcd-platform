@@ -1,4 +1,4 @@
-# Where the internal Gateway and the Secrets holding its listener certificates live. Traefik, which
+# Where the Gateway and the Secrets holding its listener certificates live. Traefik, which
 # serves the Gateway, runs in `traefik`; nothing runs here.
 #
 # Held to the restricted Pod Security Standard, like every namespace the cluster manages itself.

@@ -5,6 +5,4 @@ resources:
   - repository.yaml
   - azure-config.yaml
   - release.yaml
-  - azure-config-internal.yaml
-  - release-internal.yaml
   - release-public.yaml

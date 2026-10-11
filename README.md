@@ -26,8 +26,8 @@ infrastructure/
     external-secrets/     # External Secrets Operator
   configs/                # configuration that needs the controllers' CRDs
     gateway-api-rbac.yaml # lets the namespace `admin`/`edit` roles manage HTTPRoutes
-    gateway/              # the internal Gateway, the HTTP to HTTPS redirect
-  traefik/                # Traefik Proxy, behind an Azure internal load balancer
+    gateway/              # the Gateway, the HTTP to HTTPS redirect
+  traefik/                # Traefik Proxy, behind one load balancer, public or internal
   certificates/           # the listener certificates, synced from Key Vault
   external-dns/           # external-dns, publishing the listener hostnames in Azure DNS and
                           # Azure Private DNS
@@ -62,7 +62,7 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | Controller | Namespace | Chart |
 | --- | --- | --- |
 | External Secrets Operator | `external-secrets` | `external-secrets` 2.12.x from https://charts.external-secrets.io |
-| external-dns | `external-dns` | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/, three times: `external-dns` (public zone), `external-dns-internal` (private zone) and `external-dns-public` (the webhook's public address) |
+| external-dns | `external-dns` | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/, twice: `external-dns` (the listener hostnames) and `external-dns-public` (the load balancer's address) |
 | Traefik Proxy | `traefik` | `traefik` 39.0.x (Traefik v3.6) from https://traefik.github.io/charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
@@ -105,10 +105,11 @@ The names of every secret can be listed by every identity with a share - only va
 ## Publishing applications
 
 Applications are published through the [Kubernetes Gateway API][gatewayapi] on
-[Traefik Proxy][traefik], on two Gateways: `internal`, reached through an
-[Azure internal load balancer][ilb] at a private address in the cluster's network, for the private
-zone's hostnames, and `public`, reached through a public IP, for the public zone's - this is a
-prototype, and its apps and Traefik's dashboard are on the internet.
+[Traefik Proxy][traefik], on one Gateway, `public`, behind one load balancer. The cluster has one DNS
+zone (aks-terraform, `dns_zone_name`), **public or private** (`dns_zone_private`): with a public zone
+the load balancer has a public IP and the apps are on the internet - as in the `dev` lab, with
+`onek8s.lol` - and with a private one it is an [Azure internal load balancer][ilb] at a private address
+in the cluster's network, and the names resolve only where the private zone is linked.
 aks-terraform turns on the managed Gateway API CRDs, whose version AKS ties to the cluster's
 Kubernetes version - and Traefik's minor version is tied to it in turn: Traefik serves no Gateway
 until it can watch every Gateway API kind it knows, so v3.6 needs Gateway API v1.4 (Kubernetes 1.35)
@@ -122,46 +123,39 @@ The split between the platform and the teams is the [Gateway API role model][rol
 | | Who | Where |
 | --- | --- | --- |
 | The Gateway API CRDs | AKS / Platform | aks-terraform |
-| The GatewayClass, Traefik and its internal and public load balancers | Platform | `infrastructure/traefik` |
-| The `internal` and `public` Gateways: hostnames, listeners, who may attach to each, TLS, HTTP to HTTPS redirect | Platform | `infrastructure/configs/gateway` |
+| The GatewayClass, Traefik and its load balancer | Platform | `infrastructure/traefik` |
+| The `public` Gateway: hostnames, listeners, who may attach to each, TLS, HTTP to HTTPS redirect | Platform | `infrastructure/configs/gateway` |
 | Certificates: kept in Key Vault, synced into the listeners' Secrets | Platform | `infrastructure/certificates` |
 | DNS: a record per listener hostname in Azure DNS or Azure Private DNS | Platform | `infrastructure/external-dns` |
 | Letting Traefik into a team namespace | Platform | `tenants/<team>/networkpolicy.yaml` |
 | `HTTPRoute`, `Service`, the app | Team | the team's own repository |
 
 - **Traefik** runs one replica - the prototype cluster is a single small node; an update replaces
-  the pod rather than surging a second one, so it needs no spare room - behind two `LoadBalancer`
-  Services. `traefik` carries `service.beta.kubernetes.io/azure-load-balancer-internal: "true"`, so
-  AKS puts its frontend on a private IP of the cluster's network, and carries the entry points `web`
-  (8000) and `websecure` (8443). `traefik-public` gets a public IP and carries `web-pub` (9000)
-  and `websecure-pub` (9443). An entry point is on one of them only, so a listener of one Gateway
-  cannot be reached through the other's load balancer, whatever Host or SNI a client sends. Both
-  serve 80 and 443 outside. `externalTrafficPolicy: Local` keeps the client's address.
-- The **`internal` Gateway**, in `ingress-gateway`, on 8000 and 8443, has the private zone's
-  hostnames:
+  the pod rather than surging a second one, so it needs no spare room - behind one `LoadBalancer`
+  Service, `traefik`, carrying the entry points `web-pub` (9000) and `websecure-pub` (9443) on 80
+  and 443. Its `service.beta.kubernetes.io/azure-load-balancer-internal` annotation is
+  `${dns_zone_private}`: `"false"` gives it a public IP, `"true"` a private IP of the cluster's
+  network. `externalTrafficPolicy: Local` keeps the client's address.
+- The **`public` Gateway**, in `ingress-gateway`, on 9000 and 9443, has the zone's hostnames:
   - an **`http`** listener, open to routes of `ingress-gateway` only, that redirects everything to
     HTTPS;
-  - **`https-example-internal`**, open to the `HTTPRoute`s of the `example` namespace, and
-    **`https-traefik-internal`**, open to `ingress-gateway`.
-- The **`public` Gateway**, in `ingress-gateway`, on 9000 and 9443, has the public zone's:
-  - an **`http`** listener that redirects to HTTPS, like the internal one;
-  - **`https-example`** for the `example` namespace, **`https-traefik`** for `ingress-gateway`, and
-    **`https-flux-webhook`** for `flux-system` - see [Webhook](#webhook).
+  - **`https-example`** and **`https-example-global`** for the `example` namespace,
+    **`https-traefik`** for `ingress-gateway`, and **`https-flux-webhook`** for `flux-system` - see
+    [Webhook](#webhook).
 
   Every HTTPS listener terminates TLS with the wildcard certificate in `gateway-tls`. A team's route
   names the listeners it attaches to (`sectionName`) and neither hostname nor certificate: aks-hello
-  attaches to `public`/`https-example` and `internal`/`https-example-internal`, and is published on
-  both sides.
+  attaches to `https-example` and `https-example-global`.
 
-  `dashboard.yaml` serves Traefik's dashboard (`api@internal`) on `https-traefik` and
-  `https-traefik-internal` **with no authentication**, so on the internet as well. It is read-only,
+  `dashboard.yaml` serves Traefik's dashboard (`api@internal`) on `https-traefik` **with no
+  authentication**, so on the internet with a public zone. It is read-only,
   but shows every router, service and backend; put it behind authentication, or take it off the
   public Gateway, before the cluster is more than a prototype. Traefik v3.6 lets a route in any
   namespace name its internal services; limiting that to `ingress-gateway`
   (`crossProviderNamespaces`) needs v3.7.1, which needs Kubernetes 1.36 - see below.
 
   Traefik requires a listener's port to be one of its entry points inside the pod; the load
-  balancers serve them on 80 and 443.
+  balancer serves them on 80 and 443.
 
 ### Certificates and DNS
 
@@ -176,21 +170,18 @@ account:
   certificate's secret - a PFX - as `ingress-gateway/key-vault` and writes it as the
   `kubernetes.io/tls` Secret the listener names. A new version in the vault reaches the listener
   within the hour.
-- **DNS** (`infrastructure/external-dns`), three releases, each with a TXT record beside every
-  record it keeps marking it as its own; none ever deletes a record it did not create:
-  - `external-dns`, as `external-dns/external-dns`, keeps a record in the public zone for every
-    hostname a Gateway in `ingress-gateway` serves there - the route's, or the listener's where the
-    route names none. The public Gateway's `external-dns.kubernetes.io/target` annotation makes
-    them CNAMEs to `public_hostname`; Traefik gives every Gateway the internal address in its status,
-    so without it they would point inside the network.
+- **DNS** (`infrastructure/external-dns`), two releases writing the one zone with the provider
+  aks-terraform names in `dns_provider` - `azure` for a public zone, `azure-private-dns` for a private
+  one - each with a TXT record beside every record it keeps marking it as its own; none ever deletes
+  a record it did not create:
+  - `external-dns`, as `external-dns/external-dns`, keeps a record for every hostname a Gateway in
+    `ingress-gateway` serves - the route's, or the listener's where the route names none. The
+    Gateway's `external-dns.kubernetes.io/target` annotation makes them CNAMEs to
+    `public_hostname`. It leaves `example_global_hostname` alone: that record is aks-terraform's
+    Traffic Manager CNAME.
   - `external-dns-public`, as the same service account, keeps `public_hostname` as an A record to
-    the public IP of `traefik-public`. It reads Services in `traefik` only, so no team can publish a
-    name of its own.
-  - `external-dns-internal` keeps A records in the Azure Private DNS zone aks-terraform names
-    (`internal_dns_zone_name`) to the internal Gateway's address, the internal load balancer's IP:
-    the Azure provider writes public or private zones, never both. The private zone is a subdomain
-    of the public one, so the public releases exclude it - its hostnames resolve only inside the
-    networks it is linked to.
+    the address of Traefik's `traefik` Service. It reads Services in `traefik` only, so no team can
+    publish a name of its own.
 
 ### Cluster settings
 
@@ -200,16 +191,15 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | Variable | Set by | |
 | --- | --- | --- |
 | `key_vault_url`, `key_vault_client_id_<namespace>` | aks-terraform | The cluster's Key Vault, and the identity each namespace's `key-vault` service account reads its share of it as. A namespace added to the vault's shares in aks-terraform is added here too. |
-| `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id` | aks-terraform | The zone the hostnames are published in, and the identity that writes it. |
-| `internal_dns_zone_name`, `internal_dns_zone_resource_group_name`, `internal_dns_zone_subscription_id` | aks-terraform | The private zone the hostnames are also published in. |
+| `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id` | aks-terraform | The one zone the hostnames are published in, and the identity that writes it. |
+| `dns_zone_private`, `dns_provider` | aks-terraform | Whether the zone is private (`"true"` / `"false"`) - which makes Traefik's load balancer internal - and the external-dns provider: `azure` or `azure-private-dns`. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
 | `portable_disk_resource_group_name` | aks-terraform | Where the disks of the `portable-disk` StorageClass go: the resource group of the environment's clusters and shared resources, not the cluster's node resource group. See [Persistent volumes](#persistent-volumes). |
-| `gateway_certificate_name` | this repository | The Key Vault certificate every HTTPS listener serves, without its `ingress-gateway--` prefix: a wildcard for `*.<dns_zone_name>` and `*.<internal_dns_zone_name>`, issued by aks-terraform's Renew Certificate workflow. |
-| `example_hostname` | this repository | The hostname of the public `https-example` listener: one level below the zone's apex, which is all the wildcard covers. |
-| `example_internal_hostname` | this repository | The hostname of the `https-example-internal` listener, the same way in the private zone. |
-| `traefik_hostname` | this repository | The public hostname of Traefik's dashboard (`https-traefik`). |
-| `traefik_internal_hostname` | this repository | The dashboard's hostname in the private zone (`https-traefik-internal`). |
-| `public_hostname` | this repository | The A record of the public IP, in `dns_zone_name`: every public hostname is a CNAME to it. |
+| `gateway_certificate_name` | this repository | The Key Vault certificate every HTTPS listener serves, without its `ingress-gateway--` prefix: a wildcard for `*.<dns_zone_name>`, issued by aks-terraform's Renew Certificate workflow. |
+| `example_hostname` | this repository | The hostname of the `https-example` listener, this cluster's own: one level below the zone's apex, which is all the wildcard covers. |
+| `example_global_hostname` | this repository | The hostname of `https-example-global`, which every stateless cluster serves; its record is aks-terraform's. |
+| `traefik_hostname` | this repository | The hostname of Traefik's dashboard (`https-traefik`). |
+| `public_hostname` | this repository | The A record of the load balancer's address, in `dns_zone_name`: every hostname is a CNAME to it. |
 | `flux_webhook_hostname` | this repository | The public hostname of Flux's webhook receiver, one level below `dns_zone_name` - see [Webhook](#webhook). |
 
 The ones aks-terraform sets are Azure facts and are never written here: it gives them to the
@@ -404,7 +394,7 @@ Ready, and are deleted after that - see the comment in `sync.yaml`.
 
 | Team | Namespace | Repository | Listener |
 | --- | --- | --- | --- |
-| example | `example` | [onek8s/aks-fluxcd-example](https://github.com/onek8s/aks-fluxcd-example) (`apps/` on aks-dev-stateful, `stateless/` on aks-dev-stateless-az1) | `https-example`, `https-example-internal` |
+| example | `example` | [onek8s/aks-fluxcd-example](https://github.com/onek8s/aks-fluxcd-example) (`apps/` on aks-dev-stateful, `stateless/` on aks-dev-stateless-az1) | `https-example`, `https-example-global` |
 
 ### Secrets a tenant needs
 
