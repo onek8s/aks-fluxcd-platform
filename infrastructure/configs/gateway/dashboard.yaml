@@ -1,5 +1,5 @@
-# Traefik's dashboard, on the `https-traefik` listener of the public Gateway - on the internet - and
-# `https-traefik-internal` of the internal one, with no authentication: anyone can read it. This is
+# Traefik's dashboard, on the `https-traefik` listener of the Gateway - on the internet with a public
+# zone - with no authentication: anyone who reaches it can read it. This is
 # a prototype's choice; the dashboard is read-only and changes nothing in Traefik, but it shows every
 # router, service and backend the cluster has. Put it behind authentication, or take it off the
 # public Gateway, before anything here matters.
@@ -19,10 +19,6 @@ spec:
       kind: Gateway
       name: public
       sectionName: https-traefik
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: internal
-      sectionName: https-traefik-internal
   rules:
     - matches:
         - path:

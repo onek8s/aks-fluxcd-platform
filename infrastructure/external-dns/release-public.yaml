@@ -1,13 +1,13 @@
-# external-dns a third time, for the one public address the cluster has: Traefik's `traefik-public`
-# Service (infrastructure/traefik), whose ${public_hostname} annotation it publishes as an A record
-# to the Service's public IP in the public zone. The public Gateway's hostnames are CNAMEs to it,
+# external-dns a second time, for the address of Traefik's load balancer: its `traefik` Service
+# (infrastructure/traefik), whose ${public_hostname} annotation it publishes as an A record to the
+# Service's address in the zone. The Gateway's hostnames are CNAMEs to it,
 # kept by release.yaml. It reads Services in `traefik` and nowhere
 # else: a team that annotates a Service of its own publishes nothing.
 #
 # It is not release.yaml with a second source, because a source there would read every namespace's
-# Services, and the internal Gateway's routes it reads live in the team namespaces. It acts as the
+# Services, and the Gateway's routes it reads live in the team namespaces. It acts as the
 # same `external-dns` service account as release.yaml - the one aks-terraform federates for the
-# public zone - and owns its records under a TXT owner of its own, so neither release ever deletes
+# zone - and owns its records under a TXT owner of its own, so neither release ever deletes
 # what the other keeps.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -39,15 +39,14 @@ spec:
   values:
     fullnameOverride: external-dns-public
     provider:
-      name: azure
+      # azure for a public zone, azure-private-dns for a private one (aks-terraform, dns_zone_private).
+      name: ${dns_provider}
     sources:
       - service
     extraArgs:
       - --namespace=traefik
     domainFilters:
       - "${dns_zone_name}"
-    excludeDomains:
-      - "${internal_dns_zone_name}"
     policy: sync
     txtOwnerId: "${cluster_name}-public"
     serviceAccount:

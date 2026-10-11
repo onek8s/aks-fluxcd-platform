@@ -1,6 +1,6 @@
-# The TLS certificates of the internal Gateway's listeners, synced out of Key Vault by External Secrets
+# The TLS certificates of the Gateway's listeners, synced out of Key Vault by External Secrets
 # Operator. Traefik reads listener certificates from the Kubernetes Secrets the listeners name; they
-# all name one, a wildcard certificate for both zones.
+# all name one, a wildcard certificate for the zone.
 #
 # Reconciled as its own Flux Kustomization, after `infra-configs` creates the namespace and nothing
 # waiting for it: a certificate missing from the vault leaves the listeners without one, and holds

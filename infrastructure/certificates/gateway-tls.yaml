@@ -1,6 +1,6 @@
-# The certificate every listener of the internal Gateway serves: Key Vault certificate
-# `ingress-gateway--${gateway_certificate_name}` (cluster-settings) - a wildcard for the public zone
-# and the private one, `*.<dns_zone_name>` and `*.<internal_dns_zone_name>` - as the
+# The certificate every listener of the Gateway serves: Key Vault certificate
+# `ingress-gateway--${gateway_certificate_name}` (cluster-settings) - a wildcard for the zone,
+# `*.<dns_zone_name>` - as the
 # `kubernetes.io/tls` Secret the listeners name. A certificate's private key is only readable as the
 # secret behind it, which Key Vault holds as a PKCS#12 (PFX) bundle - the default when a certificate
 # is imported or issued - and that is unpacked into PEM here.
