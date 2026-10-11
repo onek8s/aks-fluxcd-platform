@@ -92,6 +92,7 @@ account on every read, so an `ExternalSecret` in a namespace reads that namespac
 | --- | --- | --- |
 | `ingress-gateway` | `ingress-gateway--<gateway_certificate_name>` - a wildcard certificate for both zones | `gateway-tls`, the certificate of every HTTPS listener |
 | `flux-system` | `flux-system--github-webhook-token` - created by aks-terraform | `github-webhook-token`, the token Flux's GitHub Receiver checks deliveries against |
+| `example` | `example--github-webhook-token` - the same token, created by aks-terraform | `github-webhook-token`, for the team's own Receiver (`tenants/example/webhook.yaml`) |
 | `example` | `example--aks-fluxcd-example-git` - a read-only token for the team's repository | `aks-fluxcd-example-git`, for Flux |
 
 The team's images need no secret: they are in the environment's container registry, pulled as the
@@ -232,17 +233,18 @@ listener, to notification-controller's `webhook-receiver`; nothing else of the r
   `flux-system--github-webhook-token`, which aks-terraform creates (`flux_github_webhook`) and External
   Secrets syncs into `flux-system/github-webhook-token`.
 
-The repository's webhook - Settings, Webhooks, Add webhook - is set once per cluster, each to the
-cluster's own `flux_webhook_hostname` (`flux-webhook-dev-stateless-az1`, `flux-webhook-dev-stateless-az2`,
-...). The dev clusters read the same token from the shared vault, so their Receivers answer on the
-same path and all the webhooks have the same secret:
+The webhooks are not set by hand: aks-terraform's **Flux webhooks** workflow runs after every Deploy
+and points a push webhook per cluster at its `flux_webhook_hostname`, with the token from the vault as
+the secret, on two repositories:
 
-| | |
-| --- | --- |
-| Payload URL | `https://<flux_webhook_hostname><status.webhookPath of the Receiver>` - the path is printed by aks-terraform's Cluster status workflow (`kubectl get receiver -n flux-system github -o jsonpath='{.status.webhookPath}'`) |
-| Content type | `application/json` |
-| Secret | the token: `az keyvault secret show --vault-name <key vault> --name flux-system--github-webhook-token --query value -o tsv` |
-| Events | Just the push event |
+| Repository | Receiver | Reconciles |
+| --- | --- | --- |
+| onek8s/aks-fluxcd-platform | `flux-system/github` | GitRepository `platform` |
+| onek8s/aks-fluxcd-example | `example/github` (`tenants/example/webhook.yaml`) | GitRepository `example`, the team's - the AKS Flux extension refuses references across namespaces, so the team gets a Receiver of its own |
+
+notification-controller serves every Receiver on the same service, under
+`/hook/sha256(token + name + namespace)`, so the one route above reaches both. A webhook to a cluster
+that no longer runs is deleted by the same workflow.
 
 Without the webhook, or while it is down, Flux still polls the repository.
 

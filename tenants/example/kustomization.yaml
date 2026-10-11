@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - key-vault.yaml
   - networkpolicy.yaml
+  - webhook.yaml
