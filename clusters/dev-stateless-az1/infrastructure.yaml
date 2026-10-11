@@ -145,8 +145,8 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# No `storage` Kustomization: aks-prototype-b is stateless. AKS runs none of its CSI drivers here
-# (aks-terraform, envs/prototype-b.tfvars: persistent_storage_enabled = false), so there is no
+# No `storage` Kustomization: aks-dev-stateless-az1 is stateless. AKS runs none of its CSI drivers here
+# (aks-terraform, envs/dev-stateless-az1.tfvars: persistent_storage_enabled = false), so there is no
 # `portable-disk` StorageClass (infrastructure/storage). Instead the admission policy of
 # infrastructure/stateless refuses every StorageClass, PersistentVolume and claim. On its own:
 # nothing waits for it, and it waits for nothing.

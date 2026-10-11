@@ -114,6 +114,26 @@ spec:
           selector:
             matchLabels:
               kubernetes.io/metadata.name: example
+    # The hostname every stateless cluster serves the team on at once (hello.onek8s.lol): the same
+    # routes as https-example, under a name whose DNS record is aks-terraform's Traffic Manager, not
+    # this cluster's - external-dns leaves it alone (infrastructure/external-dns).
+    - name: https-example-global
+      protocol: HTTPS
+      port: 9443
+      hostname: ${example_global_hostname}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: gateway-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: example
     - name: https-traefik
       protocol: HTTPS
       port: 9443
