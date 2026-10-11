@@ -42,8 +42,12 @@ data:
   dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
   dns_zone_subscription_id: "${dns_zone_subscription_id}"
   dns_identity_client_id: "${dns_identity_client_id}"
-  dns_zone_private: "${dns_zone_private}"
+  # Written ${quote}...${quote}: kustomize drops the quotes around "${...}", and "false" would
+  # become a boolean (Flux, "Post build substitution of numbers and booleans").
+  dns_zone_private: ${quote}${dns_zone_private}${quote}
   dns_provider: "${dns_provider}"
+  # A double quote, for the Kustomizations that substitute from this ConfigMap.
+  quote: '"'
 
   # Set here. The Key Vault certificate every listener of the Gateway serves - a wildcard for the
   # zone, `*.<dns_zone_name>`, so it covers every hostname below.
