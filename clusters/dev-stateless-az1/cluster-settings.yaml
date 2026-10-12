@@ -46,6 +46,11 @@ data:
   # become a boolean (Flux, "Post build substitution of numbers and booleans").
   dns_zone_private: ${quote}${dns_zone_private}${quote}
   dns_provider: "${dns_provider}"
+  # Where node auto provisioning puts the zones' nodes (infrastructure/node-pools): the node subnet
+  # of every zone's AKSNodeClass, and the cell's availability zone (`swedencentral-1`) that every
+  # zone NodePool requires.
+  nap_subnet_id: "${nap_subnet_id}"
+  nap_availability_zone: "${nap_availability_zone}"
   # A double quote, for the Kustomizations that substitute from this ConfigMap.
   quote: '"'
 

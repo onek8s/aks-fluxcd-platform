@@ -19,8 +19,9 @@ clusters/
                           # and `storage`
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
   dev-stateless-az1/      # aks-dev-stateless-az1: the same, beside it on the same shared
-  dev-stateless-az2/      # resources, but stateless - `stateless` instead of `storage` - see
-                          # "Stateless clusters"; both serve hello.onek8s.lol at once
+  dev-stateless-az2/      # resources, but stateless - `stateless` instead of `storage`, and
+                          # `node-pools` - see "Stateless clusters"; both serve hello.onek8s.lol
+                          # at once
 infrastructure/
   controllers/            # cluster-wide controllers every cluster runs
     external-secrets/     # External Secrets Operator
@@ -32,6 +33,8 @@ infrastructure/
   external-dns/           # external-dns, publishing the listener hostnames in Azure DNS and
                           # Azure Private DNS
   flux-webhook/           # Flux's GitHub webhook receiver, on a public Gateway
+  node-pools/             # for a stateless cluster: the isolation zones' node auto provisioning
+                          # NodePools and AKSNodeClasses - int-fi, int-se, ext-fi, ext-se
   stateless/              # for a cluster without persistent storage: the admission policy that
                           # refuses every StorageClass, PersistentVolume and claim
   storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster, and
@@ -50,7 +53,7 @@ tenants/
   `dependsOn: [{ name: infra-controllers }]`.
 - `infrastructure/configs/` follows `infra-controllers`, and `tenants/` and
   `infrastructure/certificates/` follow `infra-configs`, and `infrastructure/flux-webhook/` both. `infrastructure/traefik/`,
-  `infrastructure/external-dns/` and `infrastructure/storage/` follow nothing. Nothing waits for Traefik, the certificates or
+  `infrastructure/external-dns/`, `infrastructure/storage/` and `infrastructure/node-pools/` follow nothing. Nothing waits for Traefik, the certificates or
   external-dns, so a vault or a zone that is not set up yet holds back nothing but the Gateway's
   certificates and hostnames themselves.
 
@@ -194,6 +197,7 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id` | aks-terraform | The one zone the hostnames are published in, and the identity that writes it. |
 | `dns_zone_private`, `dns_provider` | aks-terraform | Whether the zone is private (`"true"` / `"false"`) - which makes Traefik's load balancer internal - and the external-dns provider: `azure` or `azure-private-dns`. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
+| `nap_subnet_id`, `nap_availability_zone` | aks-terraform | Where node auto provisioning puts the zones' nodes: the subnet of every `AKSNodeClass`, and the cell's availability zone (`swedencentral-1`) every zone `NodePool` requires. Stateless clusters only. See [Zone nodes](#zone-nodes). |
 | `portable_disk_resource_group_name` | aks-terraform | Where the disks of the `portable-disk` StorageClass go: the resource group of the environment's clusters and shared resources, not the cluster's node resource group. See [Persistent volumes](#persistent-volumes). |
 | `gateway_certificate_name` | this repository | The Key Vault certificate every HTTPS listener serves, without its `ingress-gateway--` prefix: a wildcard for `*.<dns_zone_name>`, issued by aks-terraform's Renew Certificate workflow. |
 | `example_hostname` | this repository | The hostname of the `https-example` listener, this cluster's own: one level below the zone's apex, which is all the wildcard covers. |
@@ -299,6 +303,41 @@ kubectl delete storageclass default managed-csi-premium-v2
 Only workloads that keep no state run there. The `example` team's Flux configuration syncs
 `stateless/` of its repository on the stateless clusters rather than `apps/`: aks-hello, without
 boot-log.
+
+### Zone nodes
+
+The stateless clusters run [node auto provisioning][nap] (NAP, the AKS-managed Karpenter;
+aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default NodePools. Their
+`node-pools` Kustomization applies `infrastructure/node-pools`: for each isolation zone - **int-fi**
+and **int-se** for internal workloads, **ext-fi** and **ext-se** for external ones - one
+`AKSNodeClass` and two `NodePool`s, as in the design's
+[node pools](https://onek8s.github.io/docs/04-node-pools.html):
+
+| NodePool | Capacity | Architecture | Taints | Weight | Limits (lab) |
+| --- | --- | --- | --- | --- | --- |
+| `intfi`, `intse`, `extfi`, `extse` | on-demand | amd64 and arm64 | `platform/zone=<zone>:NoSchedule` | 10 | 16 vCPU, 64 GiB |
+| `intfispot`, `intsespot`, `extfispot`, `extsespot` | spot | amd64 and arm64 | the zone's, and `platform/capacity=spot:NoSchedule` | 50 | 8 vCPU, 32 GiB |
+
+- Every node carries the label `platform/zone=<zone>`, runs Azure Linux with encryption at host, and
+  is in the cell's availability zone and node subnet (`nap_availability_zone`, `nap_subnet_id`).
+  The lab has one node subnet for every zone; the design gives each zone its own.
+- The VM sizes come from an allow-list of SKU series with VNet encryption and encryption at host:
+  `Ds_v5`, `Ds_v6`, `Es_v5`, `Es_v6` (amd64) and `Dps_v6`, `Eps_v6` (arm64). NAP picks the
+  architecture from a pod's `kubernetes.io/arch` node selector, or the cheapest of either for a
+  multi-architecture pod without one.
+- A pod that tolerates spot is tried on `<zone>spot` first, for its higher weight, and lands on
+  `<zone>` when Azure has no spot capacity; one that does not stays off spot nodes, by their taint.
+- Empty and under-used nodes are consolidated after 5 minutes, at most 10 % of a NodePool's nodes at
+  a time, and every node is replaced after 30 days at the latest.
+
+**No zone runs anything yet.** A node is only created for a pending pod that tolerates a zone's taint,
+and none does: aks-hello and the platform's pods have no zone and stay on the system node pool, so the
+NodePools stay empty and the lab pays for no node it did not have. Moving a team into a zone takes
+its namespace's zone - the node selector `platform/zone: <zone>` and the toleration of the zone's taint
+on its pods, and the spot toleration for those that choose `platform/capacity: spot` - which the
+design injects with Azure Policy mutations that are not in place here yet.
+
+[nap]: https://learn.microsoft.com/en-us/azure/aks/node-autoprovision
 
 ### One hostname on every stateless cluster
 
