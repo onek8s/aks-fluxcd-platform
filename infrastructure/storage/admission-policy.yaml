@@ -64,5 +64,7 @@ spec:
             - flux-system
             - external-secrets
             - external-dns
-            - traefik
-            - ingress-gateway
+            - platform-gateway
+        # ... and every isolation zone's gateway and secrets namespaces (infrastructure/zones).
+        - key: platform/role
+          operator: DoesNotExist

@@ -1,5 +1,5 @@
 # Flux's webhook receiver on the internet: `/hook/` of ${flux_webhook_hostname}, on the
-# `https-flux-webhook` listener of the platform's public Gateway (infrastructure/configs/gateway), to
+# `https-flux-webhook` listener of the platform Gateway (infrastructure/platform-gateway), to
 # notification-controller's webhook receiver. Nothing else of the receiver is routed. The Flux
 # extension's `allow-webhooks` NetworkPolicy already lets Traefik reach it.
 apiVersion: gateway.networking.k8s.io/v1
@@ -11,8 +11,8 @@ spec:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      namespace: ingress-gateway
-      name: public
+      namespace: platform-gateway
+      name: platform
       sectionName: https-flux-webhook
   rules:
     - matches:

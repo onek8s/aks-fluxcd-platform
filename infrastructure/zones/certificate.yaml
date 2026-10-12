@@ -1,0 +1,57 @@
+# The zone's wildcard certificate (*.${zone_domain}), from the environment's platform Key Vault, where
+# aks-terraform's Renew Certificate workflow keeps it as `${zone}-gateway--wildcard` - the share of
+# the vault that belongs to this namespace (design section 13). The gateway reads it like an
+# application reads its secrets: through the zone's External Secrets Operator (`controller:
+# ${zone}`), as the `key-vault` service account, federated with the identity aks-terraform grants
+# this one certificate - no other zone's, and nothing in a zone vault. Traefik itself never calls Key
+# Vault.
+#
+# Key Vault holds a certificate's private key as the secret behind it, a PKCS#12 bundle, which is
+# unpacked into the `kubernetes.io/tls` Secret the listener names. A renewal reaches the listener
+# within the hour.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: key-vault
+  namespace: ${zone}-gateway
+  annotations:
+    azure.workload.identity/client-id: ${gateway_client_id}
+    azure.workload.identity/tenant-id: ${azure_tenant_id}
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: key-vault
+  namespace: ${zone}-gateway
+spec:
+  controller: ${zone}
+  provider:
+    azurekv:
+      authType: WorkloadIdentity
+      vaultUrl: ${key_vault_url}
+      serviceAccountRef:
+        name: key-vault
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-tls
+  namespace: ${zone}-gateway
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: key-vault
+  target:
+    name: gateway-tls
+    template:
+      type: kubernetes.io/tls
+      engineVersion: v2
+      data:
+        tls.crt: '{{ .pfx | b64dec | pkcs12cert }}'
+        tls.key: '{{ .pfx | b64dec | pkcs12key }}'
+  data:
+    - secretKey: pfx
+      remoteRef:
+        key: secret/${zone}-gateway--wildcard

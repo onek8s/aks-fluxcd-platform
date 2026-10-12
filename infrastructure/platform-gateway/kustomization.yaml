@@ -1,0 +1,13 @@
+# The platform's own entry point, apart from every isolation zone's: Flux's webhook receivers
+# (infrastructure/flux-webhook) and Traefik's dashboard, on the internet. Traefik runs on the system
+# pool with a GatewayClass `traefik-platform` and one Gateway, `platform`, which only the platform's
+# namespaces may attach routes to; its certificate is `platform-gateway--wildcard` (*.onek8s.lol)
+# from the platform vault, synced by the platform's External Secrets Operator.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - traefik.yaml
+  - gateway.yaml
+  - certificate.yaml
+  - dashboard.yaml

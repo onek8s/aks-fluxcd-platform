@@ -1,0 +1,36 @@
+# The ext-fi zone's Key Vault, read as the `ext-fi-example` namespace's share of it: the secrets named
+# `ext-fi-example--...`, and no others (design section 6) - see infrastructure/zones/certificate.yaml
+# for how. The zone's External Secrets Operator (`controller: ext-fi`) syncs it; the application
+# itself never calls Key Vault, and its pods cannot reach a vault (the zone's Cilium baseline). The
+# service account's name is part of the federation aks-terraform makes, so it cannot change, and no
+# pod of the team runs as it.
+#
+# The team's repository is public, so Flux reads it without a token; the images come from the
+# environment's container registry, pulled without a secret. The team holds `admin` in the
+# namespace, so it can add ExternalSecrets of its own against this store and read its own secrets
+# with them. The team's writers can put secrets under the prefix in the vault themselves.
+#
+# The `${...}` values come from aks-terraform, through cluster-settings.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: key-vault
+  namespace: ext-fi-example
+  annotations:
+    azure.workload.identity/client-id: ${key_vault_client_id_ext_fi_example}
+    azure.workload.identity/tenant-id: ${azure_tenant_id}
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: key-vault
+  namespace: ext-fi-example
+spec:
+  controller: ext-fi
+  provider:
+    azurekv:
+      authType: WorkloadIdentity
+      vaultUrl: ${key_vault_url_ext_fi_example}
+      serviceAccountRef:
+        name: key-vault

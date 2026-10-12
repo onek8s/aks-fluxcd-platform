@@ -1,0 +1,149 @@
+# The zone's Cilium policies - the third layer of design section 5, and the egress rule of
+# section 16: what leaves a pod has to be named by FQDN.
+#
+# The baseline of every application namespace of the zone (design section 7), cluster-wide so that
+# no team can change it: every namespace labelled `platform/zone: ${zone}` that is not one of the
+# platform's own. It selects every pod there for ingress and egress, so Cilium's default deny holds
+# for everything it does not allow:
+#
+#   - in: from the zone's own gateway, and from the node (kubelet probes). The namespace's own pods
+#     reach each other through the namespace's default policy (aks-terraform's managed namespace,
+#     `AllowSameNamespace`). Nothing from another zone, another namespace, or outside the cluster.
+#   - out: DNS to CoreDNS, for names in the cluster only. An application adds its own
+#     CiliumNetworkPolicy `egress` with the FQDNs it needs and their DNS rules (design section 16);
+#     without one, nothing leaves the namespace - no internet, no Key Vault, no other zone, and no
+#     instance metadata service (169.254.169.254), which has no name to allow.
+#
+# A DNS pattern's `*` is one label, so the cluster's names are allowed at every depth a lookup takes
+# - `<service>.<namespace>.svc.cluster.local`, and the search-domain expansions of an outside name
+# (`login.microsoftonline.com.<namespace>.svc.cluster.local`), which then fail as NXDOMAIN rather
+# than being refused.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: ${zone}-application-baseline
+spec:
+  description: "Baseline of the ${zone} zone's application namespaces: in from the zone's gateway only, out to cluster DNS only"
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.cilium.k8s.namespace.labels.platform/zone
+        operator: In
+        values: ["${zone}"]
+      - key: k8s:io.cilium.k8s.namespace.labels.platform/role
+        operator: DoesNotExist
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ${zone}-gateway
+            app.kubernetes.io/name: traefik
+    - fromEntities:
+        - host
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*.cluster.local"
+              - matchPattern: "*.*.cluster.local"
+              - matchPattern: "*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
+---
+# The zone's gateway (Traefik): in on its one entry point, from the load balancer - whose clients
+# keep their own addresses, so they are `world` to Cilium - and from the node; out to the zone's
+# application namespaces, which its routes lead to, and to the API server it watches. Nothing else:
+# Traefik needs no name outside the cluster, and no Key Vault - its certificate comes from the
+# zone's External Secrets Operator.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: gateway
+  namespace: ${zone}-gateway
+spec:
+  description: "The ${zone} gateway: HTTPS in from the load balancer, out to the zone's applications"
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+    - fromEntities:
+        - host
+  egress:
+    - toEndpoints:
+        - matchExpressions:
+            - key: k8s:io.cilium.k8s.namespace.labels.platform/zone
+              operator: In
+              values: ["${zone}"]
+            - key: k8s:io.cilium.k8s.namespace.labels.platform/role
+              operator: DoesNotExist
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*.cluster.local"
+              - matchPattern: "*.*.cluster.local"
+              - matchPattern: "*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.cluster.local"
+---
+# The zone's External Secrets Operator: out to the API server, to Entra ID for its workload
+# identity tokens and to Key Vault - the only namespaces of a zone that may name a vault (design
+# section 6). In: only the node.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: external-secrets
+  namespace: ${zone}-secrets
+spec:
+  description: "The ${zone} External Secrets Operator: out to the API server, Entra ID and Key Vault"
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchName: login.microsoftonline.com
+              - matchPattern: "*.vault.azure.net"
+              - matchPattern: "*.cluster.local"
+              - matchPattern: "*.*.cluster.local"
+              - matchPattern: "*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchPattern: "*.vault.azure.net"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

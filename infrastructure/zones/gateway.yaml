@@ -1,0 +1,39 @@
+# The zone's one Gateway (design section 13): HTTPS only, for every name of the zone's domain
+# (*.${zone_domain}), with the zone's wildcard certificate (certificate.yaml). Only the zone's own
+# application namespaces - `platform/zone: ${zone}`, not a platform namespace - may attach routes,
+# so a route can never reach into another zone's gateway. A route names its hostnames, below the
+# zone's domain; external-dns publishes them at the gateway's address - in the public zone for an
+# external zone, the zone's private one for an internal zone (infrastructure/external-dns picks the
+# Gateways by `platform/exposure`).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: ${zone}
+  namespace: ${zone}-gateway
+  labels:
+    platform/zone: ${zone}
+    platform/exposure: ${zone_exposure}
+spec:
+  gatewayClassName: traefik-${zone}
+  listeners:
+    - name: https
+      protocol: HTTPS
+      # Traefik's entry point inside the pod; the load balancer serves it on 443.
+      port: 8443
+      hostname: "*.${zone_domain}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: gateway-tls
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              platform/zone: ${zone}
+            matchExpressions:
+              - key: platform/role
+                operator: DoesNotExist

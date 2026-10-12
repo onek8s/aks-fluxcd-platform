@@ -1,6 +1,7 @@
-# The team namespaces' own repositories, set up once the Gateway they publish through and the RBAC
-# their routes need are in place. It does not wait for the teams' apps: a team whose deployment fails
-# shows up on its own Kustomization in its own namespace, not on this one.
+# What the team namespaces need to deploy from their own repositories, set up once the RBAC their
+# routes need is in place - the zones' gateways need not be: a route waits for its gateway. It does
+# not wait for the teams' apps: a team whose deployment fails shows up on its own Kustomization in
+# its own namespace, not on this one.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

@@ -1,0 +1,49 @@
+# The platform gateway's certificate, platform-gateway--wildcard (*.onek8s.lol) from the platform
+# vault, synced by the platform's External Secrets Operator - as a zone's gateway reads its own,
+# see infrastructure/zones/certificate.yaml.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: key-vault
+  namespace: platform-gateway
+  annotations:
+    azure.workload.identity/client-id: ${key_vault_client_id_platform_gateway}
+    azure.workload.identity/tenant-id: ${azure_tenant_id}
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: key-vault
+  namespace: platform-gateway
+spec:
+  controller: platform
+  provider:
+    azurekv:
+      authType: WorkloadIdentity
+      vaultUrl: ${key_vault_url}
+      serviceAccountRef:
+        name: key-vault
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-tls
+  namespace: platform-gateway
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: key-vault
+  target:
+    name: gateway-tls
+    template:
+      type: kubernetes.io/tls
+      engineVersion: v2
+      data:
+        tls.crt: '{{ .pfx | b64dec | pkcs12cert }}'
+        tls.key: '{{ .pfx | b64dec | pkcs12key }}'
+  data:
+    - secretKey: pfx
+      remoteRef:
+        key: secret/platform-gateway--wildcard

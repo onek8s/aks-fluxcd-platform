@@ -9,9 +9,9 @@ metadata:
     kubernetes.io/description: "Nodes of the ext-fi zone"
 spec:
   imageFamily: AzureLinux
-  # The node subnet of the cell (aks-terraform: nap_subnet_id). One subnet for every zone in the
-  # lab; the zone's own snet-ext-fi-nodes once the network has one.
-  vnetSubnetID: "${nap_subnet_id}"
+  # The zone's own node subnet in the cell, snet-ext-fi-nodes, behind the zone's NSG (aks-terraform:
+  # isolation_zones).
+  vnetSubnetID: "${nap_subnet_id_ext_fi}"
   security:
     encryptionAtHost: true
   tags:

@@ -1,0 +1,25 @@
+# The zone's two platform namespaces - reserved application names, like every `<zone>-<app>`
+# (design section 6). `platform/zone` puts them in the zone; `platform/role: platform` keeps them
+# out of the application baseline (cilium.yaml), since their policies are the platform's own. Held
+# to the restricted Pod Security Standard: both charts meet it as they are.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${zone}-gateway
+  labels:
+    platform/zone: ${zone}
+    platform/role: platform
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${zone}-secrets
+  labels:
+    platform/zone: ${zone}
+    platform/role: platform
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

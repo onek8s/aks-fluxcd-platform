@@ -1,13 +1,13 @@
 # Flux's webhook receiver, reachable from the internet so GitHub can tell Flux about a push the moment
 # it happens rather than at the next poll:
 #
-#   GitHub --HTTPS--> flux-webhook.<zone> (public IP, Traefik's `websecure-pub` entry point)
-#          --> `public` Gateway --> HTTPRoute /hook/ --> notification-controller (webhook-receiver)
+#   GitHub --HTTPS--> flux-webhook-<cluster>.<zone> (the platform gateway's public IP)
+#          --> `platform` Gateway --> HTTPRoute /hook/ --> notification-controller (webhook-receiver)
 #          --> Receiver `github` --> reconciles the `platform` GitRepository
 #
 # The Receiver checks every request's signature against the token GitHub signs with, kept in Key
-# Vault as `flux-system--github-webhook-token` (aks-terraform creates it) and synced here by External
-# Secrets. Only /hook/ of the receiver is routed.
+# Vault as `flux-system--github-webhook-token` (aks-terraform creates it, in the platform vault) and
+# synced here by External Secrets. Only /hook/ of the receiver is routed.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
