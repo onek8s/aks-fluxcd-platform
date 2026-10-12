@@ -145,6 +145,31 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
+# The nodes of the isolation zones - int-fi, int-se, ext-fi, ext-se - as node auto provisioning
+# NodePools, on-demand and spot, amd64 and arm64 (infrastructure/node-pools), in this cell's
+# availability zone and node subnet from cluster-settings.yaml. Needs NAP's CRDs, which AKS installs
+# with node auto provisioning (aks-terraform: node_auto_provisioning_enabled). Nothing waits for it:
+# no pod runs in a zone yet - aks-hello stays on the system node pool - so the NodePools stay empty.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: node-pools
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/node-pools
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
 # No `storage` Kustomization: aks-dev-stateless-az1 is stateless. AKS runs none of its CSI drivers here
 # (aks-terraform, envs/dev-stateless-az1.tfvars: persistent_storage_enabled = false), so there is no
 # `portable-disk` StorageClass (infrastructure/storage). Instead the admission policy of

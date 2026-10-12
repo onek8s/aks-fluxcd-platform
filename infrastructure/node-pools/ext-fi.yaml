@@ -1,0 +1,134 @@
+# The ext-fi isolation zone's nodes (external workloads of Finland), provisioned by node auto
+# provisioning (Karpenter): the zone's AKSNodeClass and its two NodePools, `extfi` on on-demand VMs
+# and `extfispot` on Spot VMs. See kustomization.yaml for what every zone shares.
+apiVersion: karpenter.azure.com/v1beta1
+kind: AKSNodeClass
+metadata:
+  name: extfi
+  annotations:
+    kubernetes.io/description: "Nodes of the ext-fi zone"
+spec:
+  imageFamily: AzureLinux
+  # The node subnet of the cell (aks-terraform: nap_subnet_id). One subnet for every zone in the
+  # lab; the zone's own snet-ext-fi-nodes once the network has one.
+  vnetSubnetID: "${nap_subnet_id}"
+  security:
+    encryptionAtHost: true
+  tags:
+    platform-zone: ext-fi
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: extfi
+  annotations:
+    kubernetes.io/description: "ext-fi zone, on-demand, amd64 and arm64"
+spec:
+  # Tried after extfispot for a pod that tolerates spot; the only NodePool of the zone for one that
+  # does not.
+  weight: 10
+  # Sized for N+1 - this cell carrying the whole environment alone - and small in the lab.
+  limits:
+    cpu: "16"
+    memory: 64Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "10%"
+  template:
+    metadata:
+      labels:
+        platform/zone: ext-fi
+        # Lets Karpenter count the Cilium agent in the node's overhead.
+        kubernetes.azure.com/ebpf-dataplane: cilium
+    spec:
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: extfi
+      expireAfter: 720h
+      taints:
+        - key: platform/zone
+          value: ext-fi
+          effect: NoSchedule
+      startupTaints:
+        - key: node.cilium.io/agent-not-ready
+          value: "true"
+          effect: NoExecute
+      requirements:
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64", "arm64"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["${nap_availability_zone}"]
+        - key: karpenter.azure.com/sku-series
+          operator: In
+          values: ["Ds_v5", "Ds_v6", "Es_v5", "Es_v6", "Dps_v6", "Eps_v6"]
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: extfispot
+  annotations:
+    kubernetes.io/description: "ext-fi zone, spot, amd64 and arm64"
+spec:
+  # Tried first for a pod that tolerates spot; extfi takes it when Azure has no spot capacity.
+  weight: 50
+  # How much of the zone may run on spot. Not part of the N+1 sizing: spot can disappear exactly
+  # when the cell is pre-scaled.
+  limits:
+    cpu: "8"
+    memory: 32Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "10%"
+  template:
+    metadata:
+      labels:
+        platform/zone: ext-fi
+        kubernetes.azure.com/ebpf-dataplane: cilium
+    spec:
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: extfi
+      expireAfter: 720h
+      # The spot taint keeps every pod that did not choose spot (platform/capacity: spot) off
+      # these nodes - also off spot nodes that already exist and have room.
+      taints:
+        - key: platform/zone
+          value: ext-fi
+          effect: NoSchedule
+        - key: platform/capacity
+          value: spot
+          effect: NoSchedule
+      startupTaints:
+        - key: node.cilium.io/agent-not-ready
+          value: "true"
+          effect: NoExecute
+      requirements:
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64", "arm64"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["${nap_availability_zone}"]
+        - key: karpenter.azure.com/sku-series
+          operator: In
+          values: ["Ds_v5", "Ds_v6", "Es_v5", "Es_v6", "Dps_v6", "Eps_v6"]
