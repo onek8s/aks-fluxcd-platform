@@ -17,7 +17,11 @@
 # A DNS pattern's `*` is one label, so the cluster's names are allowed at every depth a lookup takes
 # - `<service>.<namespace>.svc.cluster.local`, and the search-domain expansions of an outside name
 # (`login.microsoftonline.com.<namespace>.svc.cluster.local`), which then fail as NXDOMAIN rather
-# than being refused.
+# than being refused. The same for the node's Azure DNS suffix, the last entry of a pod's search
+# list (`<id>.<region>.internal.cloudapp.net`): a resolver that is refused on a search-domain
+# expansion stops there instead of asking for the name itself - musl's, in every Alpine image - so
+# an application's allowed FQDN would not resolve. Azure DNS answers those names itself, from the
+# VNet's own hosts; they open nothing at L3.
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
@@ -56,6 +60,13 @@ spec:
               - matchPattern: "*.*.*.*.*.cluster.local"
               - matchPattern: "*.*.*.*.*.*.cluster.local"
               - matchPattern: "*.*.*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.internal.cloudapp.net"
+              - matchPattern: "*.*.*.*.internal.cloudapp.net"
+              - matchPattern: "*.*.*.*.*.internal.cloudapp.net"
+              - matchPattern: "*.*.*.*.*.*.internal.cloudapp.net"
+              - matchPattern: "*.*.*.*.*.*.*.internal.cloudapp.net"
+              - matchPattern: "*.*.*.*.*.*.*.*.internal.cloudapp.net"
+              - matchPattern: "*.*.*.*.*.*.*.*.*.internal.cloudapp.net"
 ---
 # The zone's gateway (Traefik): in on its one entry point, from the load balancer - whose clients
 # keep their own addresses, so they are `world` to Cilium - and from the node; out to the zone's
