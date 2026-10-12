@@ -1,0 +1,63 @@
+name: CI
+
+# Builds every Kustomization the clusters apply, so a broken manifest is found in the pull request
+# rather than as a failing Kustomization in a cluster, and checks the zones' Cilium policies with
+# the same egress rules application teams are held to (scripts/check-egress.py).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KUSTOMIZE_VERSION: v5.4.3
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install kustomize
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/kustomize.tgz" \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          tar -xzf "$RUNNER_TEMP/kustomize.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Build every Kustomization
+        run: |
+          set -euo pipefail
+          for dir in $(find infrastructure tenants -name kustomization.yaml -exec dirname {} \; | sort); do
+            echo "== $dir"
+            kustomize build "$dir" > /dev/null
+          done
+
+      - name: Parse the clusters' Flux objects
+        run: |
+          python3 -c '
+          import glob, yaml
+          for f in sorted(glob.glob("clusters/*/*.yaml")):
+              list(yaml.safe_load_all(open(f)))
+              print("ok", f)
+          '
+
+      - name: The egress check refuses what it should
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/egress"
+          cat > "$RUNNER_TEMP/egress/bad.yaml" <<'POLICY'
+          apiVersion: cilium.io/v2
+          kind: CiliumNetworkPolicy
+          metadata: {name: egress}
+          spec:
+            endpointSelector: {}
+            egress:
+              - toCIDR: ["1.2.3.4/32"]
+              - toFQDNs: [{matchPattern: "*.blob.core.windows.net"}, {matchName: kv.vault.azure.net}]
+                toPorts: [{ports: [{port: "443", protocol: TCP}]}]
+          POLICY
+          if python3 scripts/check-egress.py --zone ext-fi --allow-lists policy/egress-allow-lists.yaml "$RUNNER_TEMP/egress"; then
+            echo "::error::check-egress.py accepted a CIDR, a cloud-wide wildcard and a vault"; exit 1
+          fi

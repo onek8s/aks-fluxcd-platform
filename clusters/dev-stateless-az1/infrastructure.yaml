@@ -1,6 +1,6 @@
-# The cluster-wide controllers, reconciled as their own Flux Kustomization rather than straight from
-# this directory, so that whatever builds on them - the External Secrets stores, for one - can wait
-# for them with `dependsOn: [{ name: infra-controllers }]` and is never applied before its CRDs exist.
+# The cluster-wide parts of the platform, each its own Flux Kustomization so that whatever builds on
+# another can wait for it with `dependsOn`, and nothing else is held back when one fails. The
+# isolation zones are in zones.yaml.
 #
 # `platform` is the GitRepository the AKS Flux extension creates for the cluster's Flux
 # configuration, which Terraform names `platform` and points at this directory.
@@ -9,6 +9,9 @@
 # `platform`, the Kustomization above these, and one of these can build a new commit before
 # `platform` has applied that commit's settings - substituting a setting just added as nothing. The
 # next run puts it right; at 10 minutes, soon.
+#
+# The platform's External Secrets Operator - its CRDs and webhook, and the controller of the
+# platform's namespaces - and the Helm repositories everything else installs from.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -25,8 +28,7 @@ spec:
   prune: true
   wait: true
 ---
-# The configuration built on the controllers - the Gateway, its HTTP to HTTPS redirect and
-# the RBAC team routes need - with this cluster's own values filled in from cluster-settings.yaml.
+# The RBAC team routes need.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -44,27 +46,23 @@ spec:
   path: ./infrastructure/configs
   prune: true
   wait: true
-  postBuild:
-    substituteFrom:
-      - kind: ConfigMap
-        name: cluster-settings
 ---
-# Traefik Proxy, which serves the Gateway - the apps', the dashboard's and flux-webhook's. On its own,
-# with nothing waiting for it and waiting for nothing: it needs no CRDs but the Gateway API's, which
-# AKS manages. Of this cluster's values it takes the webhook's hostname, for its public Service.
+# The platform's own gateway, on the system pool: Flux's webhook receivers and Traefik's dashboard.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: traefik
+  name: platform-gateway
   namespace: flux-system
 spec:
+  dependsOn:
+    - name: infra-controllers
   interval: 10m
   retryInterval: 1m
   timeout: 10m
   sourceRef:
     kind: GitRepository
     name: platform
-  path: ./infrastructure/traefik
+  path: ./infrastructure/platform-gateway
   prune: true
   wait: true
   postBuild:
@@ -94,34 +92,9 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# The listener certificates, synced from Key Vault once `infra-configs` has created ingress-gateway
-# and External Secrets Operator is ready. Nothing waits for them either.
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: infra-certificates
-  namespace: flux-system
-spec:
-  dependsOn:
-    - name: infra-configs
-  interval: 10m
-  retryInterval: 1m
-  timeout: 5m
-  sourceRef:
-    kind: GitRepository
-    name: platform
-  path: ./infrastructure/certificates
-  prune: true
-  wait: true
-  postBuild:
-    substituteFrom:
-      - kind: ConfigMap
-        name: cluster-settings
----
-# Flux's webhook receiver, published on the internet so a GitHub push reconciles the platform at once
-# (see infrastructure/flux-webhook). After External Secrets Operator is ready, for its SecretStore,
-# and after `infra-configs` has created the public Gateway its route attaches to. Nothing waits
-# for it: without it, Flux still polls.
+# Flux's webhook receiver, published on the platform gateway so a GitHub push reconciles the
+# platform at once (see infrastructure/flux-webhook). Nothing waits for it: without it, Flux still
+# polls.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -130,7 +103,7 @@ metadata:
 spec:
   dependsOn:
     - name: infra-controllers
-    - name: infra-configs
+    - name: platform-gateway
   interval: 10m
   retryInterval: 1m
   timeout: 5m
@@ -146,10 +119,9 @@ spec:
         name: cluster-settings
 ---
 # The nodes of the isolation zones - int-fi, int-se, ext-fi, ext-se - as node auto provisioning
-# NodePools, on-demand and spot, amd64 and arm64 (infrastructure/node-pools), in this cell's
-# availability zone and node subnet from cluster-settings.yaml. Needs NAP's CRDs, which AKS installs
-# with node auto provisioning (aks-terraform: node_auto_provisioning_enabled). Nothing waits for it:
-# no pod runs in a zone yet - aks-hello stays on the system node pool - so the NodePools stay empty.
+# NodePools, on-demand and spot, amd64 and arm64 (infrastructure/node-pools), each in its zone's
+# subnet and this cell's availability zone from cluster-settings.yaml. Needs NAP's CRDs, which AKS
+# installs with node auto provisioning (aks-terraform: node_auto_provisioning_enabled).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -170,11 +142,9 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# No `storage` Kustomization: aks-dev-stateless-az1 is stateless. AKS runs none of its CSI drivers here
-# (aks-terraform, envs/dev-stateless-az1.tfvars: persistent_storage_enabled = false), so there is no
-# `portable-disk` StorageClass (infrastructure/storage). Instead the admission policy of
-# infrastructure/stateless refuses every StorageClass, PersistentVolume and claim. On its own:
-# nothing waits for it, and it waits for nothing.
+# No `storage` Kustomization: the cell is stateless. AKS runs none of its CSI drivers here
+# (aks-terraform: persistent_storage_enabled = false), so the admission policy of
+# infrastructure/stateless refuses every StorageClass, PersistentVolume and claim instead.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

@@ -9,9 +9,9 @@ metadata:
     kubernetes.io/description: "Nodes of the int-se zone"
 spec:
   imageFamily: AzureLinux
-  # The node subnet of the cell (aks-terraform: nap_subnet_id). One subnet for every zone in the
-  # lab; the zone's own snet-int-se-nodes once the network has one.
-  vnetSubnetID: "${nap_subnet_id}"
+  # The zone's own node subnet in the cell, snet-int-se-nodes, behind the zone's NSG (aks-terraform:
+  # isolation_zones).
+  vnetSubnetID: "${nap_subnet_id_int_se}"
   security:
     encryptionAtHost: true
   tags:

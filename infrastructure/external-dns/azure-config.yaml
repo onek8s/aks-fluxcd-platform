@@ -1,10 +1,11 @@
-# The Azure provider's configuration file, which external-dns insists on reading even though it
-# authenticates through workload identity and holds no credential. Nothing in it is secret, so it is
-# a ConfigMap.
+# The Azure provider's configuration files, which external-dns insists on reading even though it
+# authenticates through workload identity and holds no credential. Nothing in them is secret, so
+# they are ConfigMaps: the public zone's resource group for the external gateways, the internal
+# zones' (in the cells' resource group) for the internal ones.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: external-dns-azure
+  name: external-dns-azure-ext
   namespace: external-dns
 data:
   azure.json: |
@@ -12,5 +13,19 @@ data:
       "tenantId": "${azure_tenant_id}",
       "subscriptionId": "${dns_zone_subscription_id}",
       "resourceGroup": "${dns_zone_resource_group_name}",
+      "useWorkloadIdentityExtension": true
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-azure-int
+  namespace: external-dns
+data:
+  azure.json: |
+    {
+      "tenantId": "${azure_tenant_id}",
+      "subscriptionId": "${dns_zone_subscription_id}",
+      "resourceGroup": "${internal_dns_resource_group_name}",
       "useWorkloadIdentityExtension": true
     }

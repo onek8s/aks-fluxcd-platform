@@ -1,0 +1,125 @@
+# The cell's isolation zones (design, "Isolation zone"), one Flux Kustomization each over
+# infrastructure/zones - the zone's gateway, External Secrets Operator and Cilium policies - with
+# the zone's values. The client IDs of the zones' gateways are aks-terraform's, filled in by the
+# `platform` Kustomization that applies this file. Each waits for the controllers (the External
+# Secrets CRDs) and the zones' NodePools; nothing waits for a zone, so one that does not come up
+# holds back no other. Adding a country is two more of these.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: zone-int-fi
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+    - name: node-pools
+  interval: 10m
+  retryInterval: 1m
+  # A zone's first node takes a few minutes to be provisioned.
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: int-fi
+      zone_exposure: int
+      zone_internal: "true"
+      zone_domain: int-fi.dev.onek8s.lol
+      gateway_client_id: "${key_vault_client_id_int_fi_gateway}"
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: zone-int-se
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+    - name: node-pools
+  interval: 10m
+  retryInterval: 1m
+  # A zone's first node takes a few minutes to be provisioned.
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: int-se
+      zone_exposure: int
+      zone_internal: "true"
+      zone_domain: int-se.dev.onek8s.lol
+      gateway_client_id: "${key_vault_client_id_int_se_gateway}"
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: zone-ext-fi
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+    - name: node-pools
+  interval: 10m
+  retryInterval: 1m
+  # A zone's first node takes a few minutes to be provisioned.
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: ext-fi
+      zone_exposure: ext
+      zone_internal: "false"
+      zone_domain: ext-fi.dev.onek8s.lol
+      gateway_client_id: "${key_vault_client_id_ext_fi_gateway}"
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: zone-ext-se
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+    - name: node-pools
+  interval: 10m
+  retryInterval: 1m
+  # A zone's first node takes a few minutes to be provisioned.
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: ext-se
+      zone_exposure: ext
+      zone_internal: "false"
+      zone_domain: ext-se.dev.onek8s.lol
+      gateway_client_id: "${key_vault_client_id_ext_se_gateway}"
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings

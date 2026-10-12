@@ -1,0 +1,32 @@
+# One isolation zone of a stateless cell - OneK8s design sections 4 to 7, 13 and 16 - applied once
+# per zone by a Flux Kustomization of its own (clusters/<cluster>/zones.yaml), which fills in the
+# zone's values:
+#
+#   ${zone}            int-fi, ext-se, ...
+#   ${zone_exposure}   int or ext
+#   ${zone_internal}   "true" for an internal zone: its gateway is behind an internal load balancer
+#   ${zone_domain}     int-fi.dev.onek8s.lol - the zone's names, and its wildcard certificate's
+#   ${gateway_client_id}  the identity `<zone>-gateway` reads its certificate in the platform vault as
+#
+# and the cluster's own from cluster-settings.yaml (key_vault_url, azure_tenant_id, quote).
+#
+# Everything here runs on the zone's own nodes (the zone's NAP NodePools, infrastructure/node-pools):
+#
+#   <zone>-gateway   Traefik Proxy for the zone - GatewayClass traefik-<zone>, one Gateway
+#                    `<zone>` with one HTTPS listener for *.<zone domain>, which only the zone's
+#                    application namespaces may attach routes to - and its certificate.
+#   <zone>-secrets   External Secrets Operator for the zone: controllerClass <zone>, so it syncs the
+#                    zone's stores only.
+#
+# and the Cilium policies of the zone: the baseline of every application namespace of the zone
+# (default deny, DNS, ingress from the zone's gateway only), and the platform-owned policies of the
+# two namespaces above.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces.yaml
+  - external-secrets.yaml
+  - traefik.yaml
+  - gateway.yaml
+  - certificate.yaml
+  - cilium.yaml

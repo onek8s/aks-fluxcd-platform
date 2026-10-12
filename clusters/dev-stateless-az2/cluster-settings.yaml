@@ -1,22 +1,9 @@
 # The values that make this cluster's configuration its own, handed to the Flux Kustomizations
 # through `postBuild.substituteFrom`.
 #
-# aks-dev-stateless-az2: one of the OneK8s dev environment's stateless clusters, with aks-dev-stateless-az1
-# (clusters/dev-stateless-az1) and beside aks-dev-stateful (clusters/dev-stateful). All read the
-# environment's shared Key Vault and publish in its shared zones (aks-terraform,
-# shared/envs/dev.tfvars), so they serve the same wildcard certificate and their namespaces read the
-# same secrets as the same identities.
-#
-# Stateless: no persistent storage at all - no CSI drivers, no `portable-disk` StorageClass - so it
-# runs only workloads that keep no state. The `example` team syncs the stateless part of its
-# repository here (`stateless/`, without boot-log).
-#
-# The hostnames below are this cluster's own and carry its name (traefik-dev-stateless-az2,
-# public-dev-stateless-az2, flux-webhook-dev-stateless-az2, hello-dev-stateless-az2), so the
-# clusters never contend for a DNS record. The one exception is example_global_hostname,
-# hello.onek8s.lol, which every stateless cluster serves at once: its record is aks-terraform's - a
-# CNAME to an Azure Traffic Manager profile over the clusters' public_hostname - and external-dns
-# leaves it alone.
+# aks-dev-stateless-az2: one of the OneK8s dev environment's stateless cells (design section 8), with its own
+# network, isolation zones and gateways. Every cell runs every external application; Azure Traffic
+# Manager hands out one cell or another (aks-terraform, shared/: global_hostnames).
 #
 # The `${...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives the
 # facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
@@ -29,54 +16,36 @@ metadata:
 data:
   cluster_name: "${cluster_name}"
   azure_tenant_id: "${azure_tenant_id}"
-  # The cluster's Key Vault, and for each namespace with a share of it the identity that namespace's
+  # The environment's platform Key Vault - the gateways' certificates, the Flux webhook token - and,
+  # for each namespace with a share of a vault, the vault and the identity that namespace's
   # `key-vault` service account reads it as. A namespace reads the secrets named `<namespace>--...`
-  # and no others.
+  # and no others. The zones' gateways get theirs in zones.yaml.
   key_vault_url: "${key_vault_url}"
-  key_vault_client_id_ingress_gateway: "${key_vault_client_id_ingress_gateway}"
-  key_vault_client_id_example: "${key_vault_client_id_example}"
   key_vault_client_id_flux_system: "${key_vault_client_id_flux_system}"
-  # The one DNS zone the listener hostnames are published in, the identity that writes it, whether it
-  # is public or private, and the external-dns provider for it (azure / azure-private-dns).
+  key_vault_client_id_platform_gateway: "${key_vault_client_id_platform_gateway}"
+  key_vault_client_id_ext_fi_example: "${key_vault_client_id_ext_fi_example}"
+  key_vault_url_ext_fi_example: "${key_vault_url_ext_fi_example}"
+  # The public zone the external gateways' hostnames are published in, the internal zones' resource
+  # group, and the identity external-dns writes them as.
   dns_zone_name: "${dns_zone_name}"
   dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
   dns_zone_subscription_id: "${dns_zone_subscription_id}"
   dns_identity_client_id: "${dns_identity_client_id}"
-  # Written ${quote}...${quote}: kustomize drops the quotes around "${...}", and "false" would
-  # become a boolean (Flux, "Post build substitution of numbers and booleans").
-  dns_zone_private: ${quote}${dns_zone_private}${quote}
-  dns_provider: "${dns_provider}"
-  # Where node auto provisioning puts the zones' nodes (infrastructure/node-pools): the node subnet
-  # of every zone's AKSNodeClass, and the cell's availability zone (`swedencentral-2`) that every
-  # zone NodePool requires.
-  nap_subnet_id: "${nap_subnet_id}"
+  internal_dns_resource_group_name: "${internal_dns_resource_group_name}"
+  # Where node auto provisioning puts each zone's nodes (infrastructure/node-pools): the zone's own
+  # node subnet, and the cell's availability zone (`swedencentral-1`) every zone NodePool requires.
+  nap_subnet_id_int_fi: "${nap_subnet_id_int_fi}"
+  nap_subnet_id_int_se: "${nap_subnet_id_int_se}"
+  nap_subnet_id_ext_fi: "${nap_subnet_id_ext_fi}"
+  nap_subnet_id_ext_se: "${nap_subnet_id_ext_se}"
   nap_availability_zone: "${nap_availability_zone}"
-  # A double quote, for the Kustomizations that substitute from this ConfigMap.
+  # A double quote, for the Kustomizations that substitute from this ConfigMap: kustomize drops the
+  # quotes around "${...}", so a value that must stay a string is written ${quote}...${quote}.
   quote: '"'
 
-  # Set here. The Key Vault certificate every listener of the Gateway serves - a wildcard for the
-  # zone, `*.<dns_zone_name>`, so it covers every hostname below.
-  # It is `ingress-gateway--<this name>` in the vault: ingress-gateway's share of it. aks-terraform's
-  # Renew Certificate workflow issues it from Let's Encrypt and renews it there, under this name;
-  # change the two together, there and here.
-  gateway_certificate_name: "wildcard"
-
-  # Set here. The hostname the `example` team is published on, which has to be one level below
-  # dns_zone_name - the wildcard covers no deeper.
-  example_hostname: "hello-dev-stateless-az2.onek8s.lol"
-  # Set here. The hostname every stateless cluster serves the `example` team on at once, on the
-  # internet - also one level below dns_zone_name, for the wildcard. Its record is not this
-  # cluster's: aks-terraform keeps it as a CNAME to a Traffic Manager profile over the clusters'
-  # public_hostname, and external-dns is told to leave it alone.
-  example_global_hostname: "hello.onek8s.lol"
-
-  # Set here. The hostname Traefik's dashboard is published on. The dashboard asks for no
-  # authentication: with a public zone anyone on the internet can read it - a prototype's choice.
-  traefik_hostname: "traefik-dev-stateless-az2.onek8s.lol"
-
-  # Set here. The name of the address of Traefik's load balancer in dns_zone_name - a public IP, or a
-  # private one with a private zone: an A record that every hostname above and below is a CNAME to.
-  public_hostname: "public-dev-stateless-az2.onek8s.lol"
-  # Set here. The hostname Flux's webhook receiver is published on, in dns_zone_name (one level below
-  # it, for the wildcard certificate). GitHub's webhook for the platform repository points at it.
+  # Set here: the platform gateway's hostnames (infrastructure/platform-gateway), this cluster's own,
+  # one level below dns_zone_name for the platform's wildcard certificate (*.onek8s.lol).
+  # GitHub's webhooks point at the first (aks-terraform, Flux webhooks workflow); the second is
+  # Traefik's dashboard, with no authentication - a prototype's choice.
   flux_webhook_hostname: "flux-webhook-dev-stateless-az2.onek8s.lol"
+  traefik_hostname: "traefik-dev-stateless-az2.onek8s.lol"

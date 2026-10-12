@@ -1,0 +1,127 @@
+# Traefik Proxy for the zone (design section 13): the Gateway API implementation of the zone, on
+# the zone's own nodes, serving the zone's one Gateway (gateway.yaml) and nothing else - its own
+# GatewayClass `traefik-${zone}`, picked out by label, and the provider scoped to that one Gateway.
+# Only the Gateway API provider: no Ingress, no IngressRoute (Kubernetes CRD) provider, no CRDs of
+# the chart's own - the Gateway API CRDs are AKS's.
+#
+# One entry point, `websecure` (8443 in the pod, 443 on the load balancer): no plain HTTP anywhere,
+# not even a redirect. The load balancer is
+#
+#   - an internal zone's: an Azure internal load balancer in the zone's own subnet snet-${zone}-ilb,
+#     reached from the network only;
+#   - an external zone's: public. Azure Traffic Manager points the applications' hostnames at it in
+#     every cell (aks-terraform, shared/: global_hostnames).
+#
+# Traefik copies the load balancer's address into the Gateway's status, and external-dns publishes
+# the routes' hostnames there (infrastructure/external-dns).
+#
+# Traefik v3.7 (chart 41) watches the kinds of Gateway API v1.5, which AKS installs on Kubernetes
+# 1.36 - every cell's version.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik-${zone}
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: traefik-${zone}
+  targetNamespace: ${zone}-gateway
+  storageNamespace: ${zone}-gateway
+  chart:
+    spec:
+      chart: traefik
+      version: "41.7.x"
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+      interval: 12h
+  install:
+    crds: Skip
+    remediation:
+      retries: 3
+  upgrade:
+    crds: Skip
+    remediation:
+      retries: 3
+  values:
+    fullnameOverride: traefik
+    providers:
+      kubernetesCRD:
+        enabled: false
+      kubernetesIngress:
+        enabled: false
+      kubernetesGateway:
+        enabled: true
+        labelSelector: platform/zone=${zone}
+        gateways:
+          - name: ${zone}
+            namespace: ${zone}-gateway
+    api:
+      dashboard: false
+    gatewayClass:
+      enabled: true
+      name: traefik-${zone}
+      labels:
+        platform/zone: ${zone}
+    gateway:
+      enabled: false
+    ingressClass:
+      enabled: false
+    ports:
+      web:
+        expose:
+          default: false
+      websecure:
+        port: 8443
+        exposedPort: 443
+        expose:
+          default: true
+        http:
+          tls:
+            enabled: true
+    service:
+      annotations:
+        # ${quote}...${quote}: "true" / "false" has to stay a string after substitution.
+        service.beta.kubernetes.io/azure-load-balancer-internal: ${quote}${zone_internal}${quote}
+        service.beta.kubernetes.io/azure-load-balancer-internal-subnet: snet-${zone}-ilb
+        # The probe the load balancer sends, over TCP to the port: no plain HTTP path to probe.
+        service.beta.kubernetes.io/port_443_health-probe_protocol: tcp
+      labels:
+        platform/zone: ${zone}
+        platform/exposure: ${zone_exposure}
+      spec:
+        type: LoadBalancer
+        # Keeps the client's address on the requests Traefik sees, and sends traffic only to the
+        # nodes a Traefik pod runs on.
+        externalTrafficPolicy: Local
+    nodeSelector:
+      platform/zone: ${zone}
+    tolerations:
+      - key: platform/zone
+        operator: Equal
+        value: ${zone}
+        effect: NoSchedule
+      - key: platform/capacity
+        operator: Equal
+        value: spot
+        effect: NoSchedule
+    # One replica in the lab: a second buys no availability on one node. Replaced rather than
+    # surged on an update.
+    deployment:
+      replicas: 1
+      podLabels:
+        platform/zone: ${zone}
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 0
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 512Mi

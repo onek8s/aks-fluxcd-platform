@@ -4,5 +4,4 @@ resources:
   - namespace.yaml
   - repository.yaml
   - azure-config.yaml
-  - release.yaml
-  - release-public.yaml
+  - release-ext.yaml

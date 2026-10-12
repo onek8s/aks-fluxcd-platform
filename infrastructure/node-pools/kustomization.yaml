@@ -16,16 +16,16 @@
 #     host: Ds_v5, Ds_v6, Es_v5, Es_v6 (amd64) and Dps_v6, Eps_v6 (arm64, Cobalt 100). Several
 #     series per architecture give the cell's one availability zone more places to find capacity.
 #   - The label `platform/zone=<zone>` and the taint `platform/zone=<zone>:NoSchedule` on every node,
-#     in the cell's availability zone (`nap_availability_zone`) and node subnet (`nap_subnet_id`),
-#     both from cluster-settings.yaml, which aks-terraform fills in.
+#     in the cell's availability zone (`nap_availability_zone`) and the zone's own node subnet
+#     (`nap_subnet_id_<zone>`), both from cluster-settings.yaml, which aks-terraform fills in.
 #   - Consolidation of empty and under-used nodes at most 10 % of the NodePool's nodes at a time,
 #     and every node replaced after 30 days at the latest.
 #
-# A node is only created for a pending pod that tolerates a zone's taint, and nothing does yet:
-# aks-hello and the platform's own pods stay on the system node pool, so in the lab these NodePools
-# stay empty and cost nothing. A team's pods get the zone's node selector and toleration - and the
-# spot toleration for `platform/capacity: spot` - from the Azure Policy mutations of design section
-# 14, which are not in place yet.
+# A node is only created for a pending pod that tolerates a zone's taint: every zone's gateway and
+# External Secrets Operator (infrastructure/zones), which also tolerate spot, and the zone's
+# applications. A team's pods are to get the zone's node selector and toleration - and the spot
+# toleration for `platform/capacity: spot` - from the Azure Policy mutations of design section 14,
+# which are not in place yet, so for now the team's manifests say so themselves.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

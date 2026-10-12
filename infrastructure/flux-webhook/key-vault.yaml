@@ -1,6 +1,7 @@
-# Key Vault, read as flux-system's share of it - the secrets named `flux-system--...` - as every
-# namespace with a share reads its own (see infrastructure/certificates/secret-store.yaml). The
-# service account's name is part of the federation aks-terraform makes, so it cannot change.
+# The platform Key Vault, read as flux-system's share of it - the secrets named `flux-system--...` -
+# as every namespace with a share reads its own (see infrastructure/zones/certificate.yaml), through
+# the platform's External Secrets Operator (`controller: platform`). The service account's name is
+# part of the federation aks-terraform makes, so it cannot change.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -16,6 +17,7 @@ metadata:
   name: key-vault
   namespace: flux-system
 spec:
+  controller: platform
   provider:
     azurekv:
       authType: WorkloadIdentity

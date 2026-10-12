@@ -1,6 +1,8 @@
-# Cluster-wide controllers every cluster runs. Each cluster pulls this directory in through its
-# `infra-controllers` Flux Kustomization - see clusters/<cluster>/infrastructure.yaml.
+# Cluster-wide controllers every cluster runs, and the Helm repositories the rest of the platform
+# installs from. Each cluster pulls this directory in through its `infra-controllers` Flux
+# Kustomization - see clusters/<cluster>/infrastructure.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - external-secrets
+  - traefik-repository.yaml

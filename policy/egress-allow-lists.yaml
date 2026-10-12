@@ -1,0 +1,26 @@
+# The FQDNs an application of each isolation zone may name in its egress policy - OneK8s design
+# section 16. In the design this is the zone's Azure Firewall allow-list (platform + security, high
+# risk tier); the lab runs without the hub Firewall (the build tenant's network mode `sandbox`), so
+# this file stands in for it. scripts/check-egress.py fails an application's pull request that names
+# anything else, so the gap is found at review time and not as a timeout at run time.
+#
+# `names` are exact; `patterns` may start with a `*.` label, never one that opens a whole cloud
+# service. Adding a name for a zone is a change to this file, reviewed by the platform team.
+zones:
+  int-fi:
+    names:
+      - login.microsoftonline.com
+    patterns: []
+  int-se:
+    names:
+      - login.microsoftonline.com
+    patterns: []
+  ext-fi:
+    names:
+      - login.microsoftonline.com
+      - api.github.com
+    patterns: []
+  ext-se:
+    names:
+      - login.microsoftonline.com
+    patterns: []

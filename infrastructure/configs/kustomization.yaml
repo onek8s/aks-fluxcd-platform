@@ -1,9 +1,8 @@
 # Cluster-wide configuration that needs the controllers' CRDs - and the Gateway API that AKS manages -
 # to exist first. Each cluster pulls this directory in through its `infra-configs` Flux Kustomization,
-# which waits for `infra-controllers` and fills in the cluster's own values (the `${...}` variables)
-# - see clusters/<cluster>/infrastructure.yaml.
+# which waits for `infra-controllers` - see clusters/<cluster>/infrastructure.yaml. The Gateways
+# themselves are the zones' (infrastructure/zones) and the platform's (infrastructure/platform-gateway).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - gateway-api-rbac.yaml
-  - gateway
