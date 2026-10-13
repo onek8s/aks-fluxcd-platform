@@ -1,0 +1,56 @@
+apiVersion: config.ratify.deislabs.io/v1beta1
+kind: KeyManagementProvider
+metadata:
+  name: platform
+spec:
+  type: azurekeyvault
+  # A renewed certificate is picked up without a restart.
+  refreshInterval: 1h
+  parameters:
+    vaultURI: ${key_vault_url}
+    certificates:
+      - name: ${image_signing_certificate_name}
+    tenantID: ${azure_tenant_id}
+    clientID: ${image_verification_client_id}
+---
+apiVersion: config.ratify.deislabs.io/v1beta1
+kind: Store
+metadata:
+  name: platform
+spec:
+  name: oras
+  parameters:
+    cacheEnabled: true
+    ttl: 10
+    authProvider:
+      name: azureWorkloadIdentity
+      clientID: ${image_verification_client_id}
+      # Its token goes to the environment's registry and nowhere else.
+      endpoints:
+        - ${container_registry_login_server}
+---
+apiVersion: config.ratify.deislabs.io/v1beta1
+kind: Verifier
+metadata:
+  name: platform
+spec:
+  name: notation
+  artifactTypes: application/vnd.cncf.notary.signature
+  parameters:
+    verificationCertStores:
+      ca:
+        platform:
+          - platform
+    trustPolicyDoc:
+      version: "1.0"
+      trustPolicies:
+        # The environment's registry: signed by the platform's certificate.
+        - name: platform
+          registryScopes:
+            - "*"
+          signatureVerification:
+            level: strict
+          trustStores:
+            - ca:platform
+          trustedIdentities:
+            - "x509.subject: ${image_signing_subject}"

@@ -21,4 +21,7 @@ and `tenants/`). Specific to it:
 - **Cilium zone baseline** (`infrastructure/zones/cilium.yaml`): default deny; DNS only for
   `cluster.local` and `internal.cloudapp.net` names (the latter so musl resolvers do not stop on the
   node's search suffix); applications add their own FQDN egress policy.
+- **Image Integrity** (`infrastructure/image-verification`): Ratify's KeyManagementProvider, Store and
+  Verifier, all named `platform`; trusts only the platform certificate's subject. Ratify's CRDs come
+  with the AKS add-on (aks-terraform `image_integrity_enabled`).
 - `clusters/dev-stateless-az2` stays even while that cluster is destroyed.

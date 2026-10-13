@@ -1,0 +1,19 @@
+# Image signature verification (OneK8s design section 14): the configuration of Ratify, which AKS runs
+# for Image Integrity (aks-terraform: image_integrity_enabled) and the Azure Policy add-on asks about
+# every image of an application pod. The assignment "Kubernetes cluster containers should only use
+# images that are signed with Notation" (azure-landing-zone stacks/aks-policy, k8s-image-integrity)
+# then reports an image whose signature does not verify - audit only, while Image Integrity is in
+# preview.
+#
+#   - KeyManagementProvider: the platform's signing certificate, read from the platform vault.
+#   - Store: the signatures, which are artifacts next to the images in the environment's registry.
+#   - Verifier: Notation, trusting signatures made with that certificate - by its subject - and no
+#     others.
+#
+# Ratify reads both as the environment's shared identity (aks-terraform shared/: image_signing),
+# federated with its service account by aks-terraform; the values come from cluster-settings.yaml.
+# The Sign images workflow in aks-terraform signs every image the registry builds.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ratify.yaml
