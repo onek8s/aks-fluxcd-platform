@@ -1,9 +1,10 @@
 # infra-observability's Cilium policy (design section 5; CIS AKS Benchmark 4.4.2), a platform
-# namespace with a platform-owned egress policy (design section 19): out to the API server (discovery,
-# events, logs metadata), the kubelets of every node (port 10250: kubelet and cAdvisor metrics), the
-# Grafana Cloud stack and Azure's retail prices (OpenCost) - nothing else; between its own pods
-# (Alloy scraping kube-state-metrics and OpenCost, Alloy clustering, the operator). In: only its own
-# pods and the node (kubelet probes).
+# namespace with a platform-owned egress policy (design section 19), for its pods on the pod network:
+# kube-state-metrics, the Beyla Kubernetes cache, OpenCost and the Alloy operator. Out to the API
+# server, the kubelets (10250), the Grafana Cloud stack and Azure's retail prices (OpenCost) - nothing
+# else; between its own pods. In: its own pods, and the nodes - the collectors, Alloy and
+# node-exporter, run on the host network (Grafana's Fleet Management presets, decision D48), where
+# Cilium sees them as host / remote-node and no pod policy applies to them.
 #
 # Grafana Cloud's ingest hosts are named per region and cluster number (prometheus-prod-<n>-...,
 # logs-prod-<n>...), all under grafana.net; the lab allows that domain. In acc and prd the stack is
@@ -21,6 +22,7 @@ spec:
         - {}
     - fromEntities:
         - host
+        - remote-node
   egress:
     - toEndpoints:
         - {}

@@ -1,11 +1,12 @@
 # Observability and cost (OneK8s design section 19): Grafana's k8s-monitoring chart in the platform
-# namespace infra-observability - Grafana Alloy collecting metrics, logs and Kubernetes events and
-# sending them to the environment's Grafana Cloud stack, kube-state-metrics, and OpenCost, which
-# turns each namespace's requests and usage into cost from Azure's retail prices.
+# namespace infra-observability, as Grafana Cloud's Fleet Management sets it up - Grafana Alloy on
+# every node, taking its pipelines from the environment's stack (remote configuration), node-exporter,
+# kube-state-metrics, Beyla's Kubernetes cache - and OpenCost, which turns each namespace's requests
+# and usage into cost from Azure's retail prices.
 #
-# The stack's endpoints, user IDs and access token come from the platform vault, as flux-system's
-# share of it: the secret `flux-system--grafana-cloud` (see key-vault.yaml). Until that secret
-# exists, the HelmRelease waits for it and nothing is installed; nothing else waits for this.
+# The stack's Fleet Management URL, user and token come from the platform vault: the secret
+# `flux-system--grafana-cloud` (see key-vault.yaml). Until that secret exists, the HelmRelease waits
+# for it and nothing is installed; nothing else waits for this.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

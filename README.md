@@ -73,7 +73,7 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | A zone's gateway: Envoy, `<zone>-approuting-istio` | `<zone>-gateway` | system pool | none - AKS creates it for the Gateway (App Routing, below) |
 | The platform's gateway: Envoy, `platform-approuting-istio` | `platform-gateway` | system pool | the same |
 | external-dns, external and internal | `external-dns` | system pool | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/ |
-| Grafana Alloy (metrics, events; logs on every node), kube-state-metrics, OpenCost | `infra-observability` | system pool; the log collector on every node | `k8s-monitoring` 4.5.2 from https://grafana.github.io/helm-charts |
+| Grafana Alloy (Fleet Management), node-exporter, kube-state-metrics, Beyla cache, OpenCost | `infra-observability` | Alloy and node-exporter on every node; the rest on the system pool | `k8s-monitoring` 4.5.2 from https://grafana.github.io/helm-charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
 in the table through `targetNamespace` and `storageNamespace` (the Helm release Secrets are kept
@@ -407,19 +407,22 @@ that is not amd64.
 ## Observability and cost
 
 `infrastructure/observability` installs Grafana's `k8s-monitoring` chart into `infra-observability`
-(design section 19), sending to the environment's Grafana Cloud stack:
+(design section 19) the way Grafana Cloud's Fleet Management sets it up (decision D48):
 
-- **Alloy** - `alloy-metrics` (kubelet, cAdvisor, kube-state-metrics, OpenCost) and `alloy-singleton`
-  (Kubernetes events) on the system pool, and `alloy-logs`, a DaemonSet on every node that reads only
-  its own node's pod logs.
+- **Alloy** - `alloy-daemon`, a DaemonSet on every node with Grafana's presets (privileged, host network
+  and PID, the node's logs, cgroups and storage). It takes its pipelines - what to collect, where to
+  send it, Beyla's eBPF instrumentation - from the stack's **Fleet Management** (remote
+  configuration), so collection is changed in Grafana Cloud, not here.
+- **node-exporter**, **kube-state-metrics** (exporting the namespaces' `platform/team`,
+  `platform/cost-center` and `platform/zone` labels) and **Beyla's Kubernetes cache**.
 - **OpenCost** prices every node from Azure's retail prices (spot nodes at the spot price) and splits
-  the cost by namespace and pod. kube-state-metrics exports the namespaces' `platform/team`,
-  `platform/cost-center` and `platform/zone` labels, so the cost and usage of a team or cost centre
-  is a query by those labels.
-- The stack's endpoints and token are one secret in the platform vault, `flux-system--grafana-cloud`,
-  a JSON object with `prometheus-url`, `prometheus-query-url`, `prometheus-username`, `loki-url`,
-  `loki-username` and `token` (an access policy token with `metrics:write`, `metrics:read` and
-  `logs:write`; OpenCost reads the usage back). Until it exists, the HelmRelease waits.
+  the cost by namespace. It reads the cluster's usage back from the stack's Prometheus, which the
+  Fleet Management token cannot, so it runs only once the vault secret carries a `metrics:read` token.
+- The stack's details are one secret in the platform vault, `flux-system--grafana-cloud`, a JSON
+  object: `remote-config-url`, `remote-config-username`, `remote-config-password`, and for OpenCost
+  `opencost-deploy: "true"`, `prometheus-query-url`, `prometheus-username`, `prometheus-read-token`
+  (see `key-vault.yaml`). Until it exists, the HelmRelease waits. aks-terraform's Store secret
+  workflow puts it into the vault without the value showing anywhere.
 
 ### Who owns a namespace
 

@@ -2,16 +2,21 @@
 # `key-vault` service account and SecretStore of infrastructure/flux-webhook): one secret,
 # `flux-system--grafana-cloud`, a JSON object with
 #
-#   prometheus-url        the stack's Prometheus remote write URL (.../api/prom/push)
-#   prometheus-query-url  the same host's query API (.../api/prom), which OpenCost reads
-#   prometheus-username   the stack's Prometheus (Mimir) instance ID
-#   loki-url              the stack's Loki push URL (.../loki/api/v1/push)
-#   loki-username         the stack's Loki instance ID
-#   token                 an access policy token with metrics:write, metrics:read, logs:write
+#   remote-config-url        the stack's Fleet Management URL (https://fleet-management-prod-NNN.grafana.net)
+#   remote-config-username   the Fleet Management user (instance) ID
+#   remote-config-password   a token the collectors use for Fleet Management and to send telemetry
+#
+# and, for OpenCost, which reads the cluster's usage back from the stack's Prometheus (optional - it
+# stays off without them):
+#
+#   opencost-deploy          "true"
+#   prometheus-query-url     the stack's Prometheus query API (https://prometheus-prod-NN-....grafana.net/api/prom)
+#   prometheus-username      the stack's Prometheus (Mimir) instance ID
+#   prometheus-read-token    a token with metrics:read
 #
 # It lands in flux-system because the HelmRelease reads it from there (valuesFrom takes Secrets of
 # its own namespace only); the chart then keeps the credentials Alloy and OpenCost use in
-# infra-observability. Rotate the token in Grafana Cloud and the vault together.
+# infra-observability. aks-terraform's Store secret workflow puts a value into the vault encrypted.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:

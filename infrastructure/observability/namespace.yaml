@@ -1,6 +1,8 @@
-# Privileged enforced, restricted audited and warned on: the log collector (alloy-logs, a DaemonSet)
-# reads the pods' log files from the node, a read-only hostPath of /var/log, which every standard but
-# privileged refuses. Everything else in the namespace meets restricted. The owner labels are the
+# Privileged enforced, restricted audited and warned on: the collectors - Alloy and node-exporter,
+# DaemonSets - run as Grafana's Fleet Management presets set them, privileged, on the host network and
+# PID namespace with the node's logs, cgroups and storage mounted (decision D48), which only the
+# privileged standard admits. kube-state-metrics, the Beyla cache, OpenCost and the operator meet
+# restricted. The owner labels are the
 # platform's, like every namespace the platform creates (Azure Policy: namespace-ownership).
 apiVersion: v1
 kind: Namespace
