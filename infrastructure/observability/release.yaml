@@ -72,6 +72,10 @@ spec:
               cpu: 2000m
               memory: 2Gi
         controller:
+          # The node's own collector, like Cilium's agent: on a full node the scheduler makes room for it
+          # by moving a lower-priority Deployment pod to another node (the system nodes' requests run at
+          # 90 % and more, mostly AKS's own pods).
+          priorityClassName: system-node-critical
           # AKS: the API server by its FQDN rather than the kubernetes Service, which a host-network
           # pod cannot rely on (the chart refuses to render on AKS without it).
           podAnnotations:
