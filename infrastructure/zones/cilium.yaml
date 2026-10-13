@@ -39,7 +39,7 @@ spec:
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: ${zone}-gateway
-            app.kubernetes.io/name: traefik
+            gateway.networking.k8s.io/gateway-name: ${zone}
     - fromEntities:
         - host
   egress:
@@ -68,11 +68,12 @@ spec:
               - matchPattern: "*.*.*.*.*.*.*.*.internal.cloudapp.net"
               - matchPattern: "*.*.*.*.*.*.*.*.*.internal.cloudapp.net"
 ---
-# The zone's gateway (Traefik): in on its one entry point, from the load balancer - whose clients
-# keep their own addresses, so they are `world` to Cilium - and from the node; out to the zone's
-# application namespaces, which its routes lead to, and to the API server it watches. Nothing else:
-# Traefik needs no name outside the cluster, and no Key Vault - its certificate comes from the
-# zone's External Secrets Operator.
+# The zone's gateway (the Envoy pods App Routing runs for the Gateway): in on its one listener, 443,
+# from the load balancer - whose clients keep their own addresses, so they are `world` to Cilium -
+# and from the node (kubelet probes); out to the zone's application namespaces, which its routes lead
+# to, and to App Routing's Istio control plane, istiod in aks-istio-system, for its configuration and
+# certificates (xDS, 15012). Nothing else: no name outside the cluster, no API server, and no Key
+# Vault - its certificate comes from the zone's External Secrets Operator, through istiod.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -86,7 +87,7 @@ spec:
         - world
       toPorts:
         - ports:
-            - port: "8443"
+            - port: "443"
               protocol: TCP
     - fromEntities:
         - host
@@ -98,8 +99,13 @@ spec:
               values: ["${zone}"]
             - key: k8s:io.cilium.k8s.namespace.labels.platform/role
               operator: DoesNotExist
-    - toEntities:
-        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: aks-istio-system
+      toPorts:
+        - ports:
+            - port: "15012"
+              protocol: TCP
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system

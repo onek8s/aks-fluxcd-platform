@@ -47,7 +47,7 @@ spec:
   prune: true
   wait: true
 ---
-# The platform's own gateway, on the system pool: Flux's webhook receivers and Traefik's dashboard.
+# The platform's own gateway, on the system pool: Flux's webhook receivers.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

@@ -5,6 +5,14 @@
 # zone's domain; external-dns publishes them at the gateway's address - in the public zone for an
 # external zone, the zone's private one for an internal zone (infrastructure/external-dns picks the
 # Gateways by `platform/exposure`).
+#
+# The class is `approuting-istio`: AKS's App Routing Gateway API implementation (aks-terraform,
+# app_routing_gateway_api_enabled), a sidecar-less Istio control plane - no service mesh. For this
+# Gateway it creates, in this namespace, `${zone}-approuting-istio`: an Envoy Deployment, its
+# `LoadBalancer` Service, an autoscaler and a disruption budget, shaped by the ConfigMap below. It
+# copies the load balancer's address into the Gateway's status.
+#
+# Changing a Gateway's class re-creates it rather than failing on the change (Flux `force`).
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -13,13 +21,19 @@ metadata:
   labels:
     platform/zone: ${zone}
     platform/exposure: ${zone_exposure}
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
-  gatewayClassName: traefik-${zone}
+  gatewayClassName: approuting-istio
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: gateway
   listeners:
     - name: https
       protocol: HTTPS
-      # Traefik's entry point inside the pod; the load balancer serves it on 443.
-      port: 8443
+      port: 443
       hostname: "*.${zone_domain}"
       tls:
         mode: Terminate
@@ -37,3 +51,61 @@ spec:
             matchExpressions:
               - key: platform/role
                 operator: DoesNotExist
+---
+# What the gateway's Deployment and Service get beyond the add-on's defaults - only fields on its
+# customization allow list (https://learn.microsoft.com/azure/aks/istio-gateway-api#configmap-customizations):
+#
+#   - the system pool, next to the platform's own gateway and controllers: a zone without
+#     applications then has no nodes at all - its NodePools scale to zero (infrastructure/node-pools);
+#   - small requests: the add-on keeps at least two replicas (its autoscaler's floor), both on the
+#     one system node of a lab cell;
+#   - the load balancer: an internal zone's is an Azure internal load balancer in the zone's own
+#     subnet snet-${zone}-ilb, reached from the network only; an external zone's is public, and
+#     Azure Traffic Manager points the applications' hostnames at it in every cell (aks-terraform,
+#     shared/: global_hostnames). Only port 443: no plain HTTP anywhere, not even a redirect;
+#   - `externalTrafficPolicy: Local`, which keeps the client's address on the requests the gateway
+#     sees and sends traffic only to nodes a gateway pod runs on. The load balancer then probes the
+#     Service's health check node port, so the probe annotations the add-on sets for the
+#     default policy are taken off (on whichever port it sets them).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway
+  namespace: ${zone}-gateway
+data:
+  deployment: |
+    spec:
+      template:
+        metadata:
+          labels:
+            platform/zone: ${zone}
+        spec:
+          nodeSelector:
+            kubernetes.azure.com/mode: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+          containers:
+            - name: istio-proxy
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+  service: |
+    metadata:
+      labels:
+        platform/zone: ${zone}
+        platform/exposure: ${zone_exposure}
+      annotations:
+        service.beta.kubernetes.io/azure-load-balancer-internal: "${zone_internal}"
+        service.beta.kubernetes.io/azure-load-balancer-internal-subnet: snet-${zone}-ilb
+        service.beta.kubernetes.io/port_80_health-probe_port:
+        service.beta.kubernetes.io/port_80_health-probe_protocol:
+        service.beta.kubernetes.io/port_80_health-probe_request-path:
+        service.beta.kubernetes.io/port_443_health-probe_port:
+        service.beta.kubernetes.io/port_443_health-probe_protocol:
+        service.beta.kubernetes.io/port_443_health-probe_request-path:
+    spec:
+      externalTrafficPolicy: Local

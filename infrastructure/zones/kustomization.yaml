@@ -13,9 +13,9 @@
 # The zone's two platform namespaces run on the system pool, not on the zone's nodes, so that a zone
 # without applications has no nodes (its NodePools, infrastructure/node-pools, scale to zero):
 #
-#   <zone>-gateway   Traefik Proxy for the zone - GatewayClass traefik-<zone>, one Gateway
-#                    `<zone>` with one HTTPS listener for *.<zone domain>, which only the zone's
-#                    application namespaces may attach routes to - and its certificate.
+#   <zone>-gateway   The zone's Gateway `<zone>` - class approuting-istio, App Routing's Envoy
+#                    pods and load balancer, one HTTPS listener for *.<zone domain>, which only the
+#                    zone's application namespaces may attach routes to - and its certificate.
 #   <zone>-secrets   External Secrets Operator for the zone: controllerClass <zone>, so it syncs the
 #                    zone's stores only.
 #
@@ -27,7 +27,6 @@ kind: Kustomization
 resources:
   - namespaces.yaml
   - external-secrets.yaml
-  - traefik.yaml
   - gateway.yaml
   - certificate.yaml
   - cilium.yaml

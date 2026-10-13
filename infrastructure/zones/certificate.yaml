@@ -3,8 +3,8 @@
 # the vault that belongs to this namespace (design section 13). The gateway reads it like an
 # application reads its secrets: through the zone's External Secrets Operator (`controller:
 # ${zone}`), as the `key-vault` service account, federated with the identity aks-terraform grants
-# this one certificate - no other zone's, and nothing in a zone vault. Traefik itself never calls Key
-# Vault.
+# this one certificate - no other zone's, and nothing in a zone vault. The gateway itself never calls
+# Key Vault: istiod hands the Secret to the gateway's Envoy pods.
 #
 # Key Vault holds a certificate's private key as the secret behind it, a PKCS#12 bundle, which is
 # unpacked into the `kubernetes.io/tls` Secret the listener names. A renewal reaches the listener

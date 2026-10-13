@@ -3,7 +3,11 @@
 # zone (`platform/exposure: ext`).
 #
 #   ${flux_webhook_hostname}  Flux's webhook receivers (infrastructure/flux-webhook)
-#   ${traefik_hostname}       this Traefik's dashboard (dashboard.yaml)
+#
+# Class `approuting-istio`, like the zones' Gateways (infrastructure/zones/gateway.yaml, which this
+# follows but for the load balancer, which is always public): App Routing creates the Envoy
+# Deployment and `LoadBalancer` Service `platform-approuting-istio` here, shaped by the ConfigMap
+# below.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -12,12 +16,19 @@ metadata:
   labels:
     platform/gateway: platform
     platform/exposure: ext
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
-  gatewayClassName: traefik-platform
+  gatewayClassName: approuting-istio
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: gateway
   listeners:
     - name: https-flux-webhook
       protocol: HTTPS
-      port: 8443
+      port: 443
       hostname: ${flux_webhook_hostname}
       tls:
         mode: Terminate
@@ -32,17 +43,42 @@ spec:
           selector:
             matchLabels:
               kubernetes.io/metadata.name: flux-system
-    - name: https-traefik
-      protocol: HTTPS
-      port: 8443
-      hostname: ${traefik_hostname}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: gateway-tls
-      allowedRoutes:
-        kinds:
-          - kind: HTTPRoute
-        namespaces:
-          from: Same
+---
+# The system pool, small requests, a public load balancer on 443 only and `externalTrafficPolicy:
+# Local` - see infrastructure/zones/gateway.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway
+  namespace: platform-gateway
+data:
+  deployment: |
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            kubernetes.azure.com/mode: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+          containers:
+            - name: istio-proxy
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+  service: |
+    metadata:
+      labels:
+        platform/exposure: ext
+      annotations:
+        service.beta.kubernetes.io/port_80_health-probe_port:
+        service.beta.kubernetes.io/port_80_health-probe_protocol:
+        service.beta.kubernetes.io/port_80_health-probe_request-path:
+        service.beta.kubernetes.io/port_443_health-probe_port:
+        service.beta.kubernetes.io/port_443_health-probe_protocol:
+        service.beta.kubernetes.io/port_443_health-probe_request-path:
+    spec:
+      externalTrafficPolicy: Local

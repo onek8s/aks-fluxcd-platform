@@ -50,9 +50,7 @@ data:
   # quotes around "${...}", so a value that must stay a string is written ${quote}...${quote}.
   quote: '"'
 
-  # Set here: the platform gateway's hostnames (infrastructure/platform-gateway), this cluster's own,
+  # Set here: the platform gateway's hostname (infrastructure/platform-gateway), this cluster's own,
   # one level below dns_zone_name for the platform's wildcard certificate (*.onek8s.lol).
-  # GitHub's webhooks point at the first (aks-terraform, Flux webhooks workflow); the second is
-  # Traefik's dashboard, with no authentication - a prototype's choice.
+  # GitHub's webhooks point at it (aks-terraform, Flux webhooks workflow).
   flux_webhook_hostname: "flux-webhook-dev-stateless-az1.onek8s.lol"
-  traefik_hostname: "traefik-dev-stateless-az1.onek8s.lol"
