@@ -25,4 +25,8 @@ and `tenants/`). Specific to it:
 - **Image Integrity** (`infrastructure/image-verification`): Ratify's KeyManagementProvider, Store and
   Verifier, all named `platform`; trusts only the platform certificate's subject. Ratify's CRDs come
   with the AKS add-on (aks-terraform `image_integrity_enabled`).
+- **Platform namespaces have Cilium policies too** (CIS AKS 4.4.2): `external-dns` (API server, Entra ID,
+  ARM), `external-secrets` (API server, Entra ID, Key Vault; webhook 10250 in from the cluster) and
+  `platform-gateway` (443 in, notification-controller 9292 and istiod out), next to the zones'.
+  Every namespace the fleet creates sets its `default` ServiceAccount's `automountServiceAccountToken: false` (CIS 4.1.5).
 - `clusters/dev-stateless-az2` stays even while that cluster is destroyed.

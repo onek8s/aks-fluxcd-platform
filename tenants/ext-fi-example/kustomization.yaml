@@ -7,3 +7,4 @@ kind: Kustomization
 resources:
   - key-vault.yaml
   - webhook.yaml
+  - default-service-account.yaml
