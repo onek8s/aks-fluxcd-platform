@@ -1,0 +1,51 @@
+# The platform's External Secrets Operator's Cilium policy (design section 5; CIS AKS Benchmark
+# 4.4.2), like a zone's (infrastructure/zones/cilium.yaml): out to the API server, to Entra ID for
+# its workload identity tokens and to Key Vault. In: the node (kubelet probes), and the chart's
+# admission webhook, which the API server calls on its port (10250) - through AKS's konnectivity
+# agents, so from inside the cluster but not from one fixed endpoint; nothing from outside it.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  description: "The platform's External Secrets Operator: out to the API server, Entra ID and Key Vault"
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchName: login.microsoftonline.com
+              - matchPattern: "*.vault.azure.net"
+              - matchPattern: "*.cluster.local"
+              - matchPattern: "*.*.cluster.local"
+              - matchPattern: "*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchPattern: "*.vault.azure.net"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

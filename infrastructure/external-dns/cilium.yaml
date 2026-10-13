@@ -1,0 +1,43 @@
+# external-dns's Cilium policy (design section 5; CIS AKS Benchmark 4.4.2): out to the API server,
+# for the routes it publishes, and to Entra ID and Azure Resource Manager, for the DNS zones it writes
+# as its workload identity - nothing else. In: only the node (kubelet probes).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  description: "external-dns: out to the API server, Entra ID and Azure Resource Manager"
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchName: login.microsoftonline.com
+              - matchName: management.azure.com
+              - matchPattern: "*.cluster.local"
+              - matchPattern: "*.*.cluster.local"
+              - matchPattern: "*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.cluster.local"
+              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
+    - toFQDNs:
+        - matchName: login.microsoftonline.com
+        - matchName: management.azure.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
