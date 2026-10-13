@@ -20,8 +20,8 @@ clusters/
   dev-stateless-az1/      # aks-dev-stateless-az1, a cell in availability zone 1
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
-                          # `platform-gateway`, `external-dns`, `flux-webhook`, `node-pools`
-                          # and `image-verification`
+                          # `platform-gateway`, `external-dns`, `flux-webhook`, `node-pools`,
+                          # `image-verification` and `observability`
     zones.yaml            # Flux Kustomizations `zone-<zone>` -> infrastructure/zones, one per zone
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
   dev-stateless-az2/      # aks-dev-stateless-az2, the same in availability zone 2
@@ -36,7 +36,10 @@ infrastructure/
   external-dns/           # external-dns, publishing the gateways' hostnames in Azure DNS (external)
                           # and Azure Private DNS (internal)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
-  node-pools/             # the isolation zones' node auto provisioning NodePools and AKSNodeClasses
+  node-pools/             # the isolation zones' node auto provisioning NodePools and AKSNodeClasses,
+                          # GPU ones included
+  observability/          # Grafana's k8s-monitoring: Alloy, kube-state-metrics and OpenCost, to the
+                          # environment's Grafana Cloud stack
   image-verification/     # Ratify's configuration for AKS Image Integrity: the platform's signing
                           # certificate, the registry's signatures, the Notation trust policy
   storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
@@ -70,6 +73,7 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | A zone's gateway: Envoy, `<zone>-approuting-istio` | `<zone>-gateway` | system pool | none - AKS creates it for the Gateway (App Routing, below) |
 | The platform's gateway: Envoy, `platform-approuting-istio` | `platform-gateway` | system pool | the same |
 | external-dns, external and internal | `external-dns` | system pool | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/ |
+| Grafana Alloy (metrics, events; logs on every node), kube-state-metrics, OpenCost | `infra-observability` | system pool; the log collector on every node | `k8s-monitoring` 4.5.2 from https://grafana.github.io/helm-charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
 in the table through `targetNamespace` and `storageNamespace` (the Helm release Secrets are kept
@@ -344,13 +348,14 @@ boot-log.
 The stateless clusters run [node auto provisioning][nap] (NAP, the AKS-managed Karpenter;
 aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default NodePools. Their
 `node-pools` Kustomization applies `infrastructure/node-pools`: for each isolation zone one
-`AKSNodeClass` and two `NodePool`s, as in the design's
+`AKSNodeClass` and two `NodePool`s, and a GPU `AKSNodeClass` and `NodePool`, as in the design's
 [node pools](https://onek8s.github.io/docs/04-node-pools.html):
 
 | NodePool | Capacity | Architecture | Taints | Weight | Limits (lab) |
 | --- | --- | --- | --- | --- | --- |
 | `intfi`, `intse`, `extfi`, `extse` | on-demand | amd64 and arm64 | `platform/zone=<zone>:NoSchedule` | 10 | 16 vCPU, 64 GiB |
 | `intfispot`, `intsespot`, `extfispot`, `extsespot` | spot | amd64 and arm64 | the zone's, and `platform/capacity=spot:NoSchedule` | 50 | 8 vCPU, 32 GiB |
+| `intfigpu`, `intsegpu`, `extfigpu`, `extsegpu` | on-demand, NVIDIA H100 (NC H100 v5) | amd64 | the zone's, and `platform/accelerator=nvidia-gpu:NoSchedule` | 5 | `gpu_cpu_limit` vCPU (cluster-settings.yaml): **0 in the dev lab**, 40 = one `Standard_NC40ads_H100_v5` |
 
 - Every node carries the label `platform/zone=<zone>`, runs Azure Linux with encryption at host, and
   is in the cell's availability zone and the zone's own subnet (`nap_subnet_id_<zone>`), behind the
@@ -364,9 +369,64 @@ aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default No
 - Empty and under-used nodes are consolidated after 5 minutes, at most 10 % of a NodePool's nodes at
   a time, and every node is replaced after 30 days at the latest.
 
-A team's pods need the zone's node selector and toleration (and the spot toleration to run on spot),
-which the design injects with Azure Policy mutations that are not in place yet, so for now the team's
-manifests say so themselves.
+A team's pods get the zone's node selector and toleration, and the spot toleration and preference
+for `platform/capacity: spot`, from Azure Policy mutations (azure-landing-zone `stacks/aks-policy`).
+
+### GPU nodes
+
+A pod gets a GPU by asking for it and saying so with a label:
+
+```yaml
+metadata:
+  labels:
+    platform/accelerator: nvidia-gpu
+spec:
+  containers:
+    - name: inference
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+```
+
+The label makes an Azure Policy mutation add the toleration of the zone's GPU NodePool
+(`platform/accelerator=nvidia-gpu:NoSchedule`); the request makes NAP create a GPU node for the pod,
+on `<zone>gpu`, since no other NodePool offers GPUs. Azure Policy refuses the request without the
+label, the label without a request (a GPU node is not for pods that do not use its GPU) and a GPU pod
+that is not amd64.
+
+- Only NC H100 v5 sizes: the GPU VMs that support VNet encryption and encryption at host, as every
+  zone node must (design decision D42). On-demand only.
+- AKS's managed GPU stack (preview, the `AKSNodeClass` tag `EnableManagedGPUExperience`; aks-terraform
+  registers the feature): AKS installs the NVIDIA driver, the device plugin and the DCGM metrics
+  exporter, so there is no GPU operator to run.
+- **The dev lab runs no GPU nodes**: its cells set `gpu_cpu_limit: "0"`, so a GPU pod there stays Pending
+  (the policies are tested by dry runs). An environment that offers GPUs sets the limit per cluster.
+- The node is removed a minute after its last GPU pod. The subscription's quota for the family
+  (`StandardNCadsH100v5Family`) starts at 0 and is raised with aks-terraform's vCPU quota workflow.
+
+## Observability and cost
+
+`infrastructure/observability` installs Grafana's `k8s-monitoring` chart into `infra-observability`
+(design section 19), sending to the environment's Grafana Cloud stack:
+
+- **Alloy** - `alloy-metrics` (kubelet, cAdvisor, kube-state-metrics, OpenCost) and `alloy-singleton`
+  (Kubernetes events) on the system pool, and `alloy-logs`, a DaemonSet on every node that reads only
+  its own node's pod logs.
+- **OpenCost** prices every node from Azure's retail prices (spot nodes at the spot price) and splits
+  the cost by namespace and pod. kube-state-metrics exports the namespaces' `platform/team`,
+  `platform/cost-center` and `platform/zone` labels, so the cost and usage of a team or cost centre
+  is a query by those labels.
+- The stack's endpoints and token are one secret in the platform vault, `flux-system--grafana-cloud`,
+  a JSON object with `prometheus-url`, `prometheus-query-url`, `prometheus-username`, `loki-url`,
+  `loki-username` and `token` (an access policy token with `metrics:write`, `metrics:read` and
+  `logs:write`; OpenCost reads the usage back). Until it exists, the HelmRelease waits.
+
+### Who owns a namespace
+
+Every namespace carries the labels `platform/team` and `platform/cost-center` and the annotation
+`platform/contact` (Azure Policy `namespace-ownership`). The platform's namespaces here are
+`platform` / `platform`, with this repository's issues as the contact; an application namespace gets
+its own from aks-terraform (`managed_namespaces.<namespace>.owner`).
 
 [nap]: https://learn.microsoft.com/en-us/azure/aks/node-autoprovision
 

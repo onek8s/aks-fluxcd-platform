@@ -1,6 +1,8 @@
 # The zone's two platform namespaces - reserved application names, like every `<zone>-<app>`
 # (design section 6). `platform/zone` puts them in the zone; `platform/role: platform` keeps them
 # out of the application baseline (cilium.yaml), since their policies are the platform's own.
+# `platform/team`, `platform/cost-center` and the annotation `platform/contact` say who owns them
+# and pays for them, like every namespace (Azure Policy: namespace-ownership).
 #
 # `<zone>-secrets` is held to the restricted Pod Security Standard: the chart meets it as it is.
 # `<zone>-gateway` enforces baseline and audits / warns on restricted: the gateway pods are App
@@ -13,22 +15,30 @@ kind: Namespace
 metadata:
   name: ${zone}-gateway
   labels:
+    platform/team: platform
+    platform/cost-center: platform
     platform/zone: ${zone}
     platform/role: platform
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
+  annotations:
+    platform/contact: https://github.com/onek8s/aks-fluxcd-platform/issues
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: ${zone}-secrets
   labels:
+    platform/team: platform
+    platform/cost-center: platform
     platform/zone: ${zone}
     platform/role: platform
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
+  annotations:
+    platform/contact: https://github.com/onek8s/aks-fluxcd-platform/issues
 ---
 # The namespaces' default service accounts hand no token to a pod that names none (CIS AKS
 # Benchmark 4.1.5): the gateway pods run as their own account (App Routing's), the zone's External

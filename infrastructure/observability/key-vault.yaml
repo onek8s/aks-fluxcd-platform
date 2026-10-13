@@ -1,0 +1,29 @@
+# The environment's Grafana Cloud stack, from the platform vault as flux-system's share of it (the
+# `key-vault` service account and SecretStore of infrastructure/flux-webhook): one secret,
+# `flux-system--grafana-cloud`, a JSON object with
+#
+#   prometheus-url        the stack's Prometheus remote write URL (.../api/prom/push)
+#   prometheus-query-url  the same host's query API (.../api/prom), which OpenCost reads
+#   prometheus-username   the stack's Prometheus (Mimir) instance ID
+#   loki-url              the stack's Loki push URL (.../loki/api/v1/push)
+#   loki-username         the stack's Loki instance ID
+#   token                 an access policy token with metrics:write, metrics:read, logs:write
+#
+# It lands in flux-system because the HelmRelease reads it from there (valuesFrom takes Secrets of
+# its own namespace only); the chart then keeps the credentials Alloy and OpenCost use in
+# infra-observability. Rotate the token in Grafana Cloud and the vault together.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-cloud
+  namespace: flux-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: key-vault
+  target:
+    name: grafana-cloud
+  dataFrom:
+    - extract:
+        key: secret/flux-system--grafana-cloud

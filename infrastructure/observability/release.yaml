@@ -1,0 +1,267 @@
+# Grafana's k8s-monitoring chart (design section 19), the platform's collection of telemetry and
+# cost, installed into infra-observability:
+#
+#   alloy-metrics    Alloy, a StatefulSet on the system pool: kubelet and cAdvisor metrics of every
+#                    node, kube-state-metrics (with the namespaces' owner labels), OpenCost's metrics
+#   alloy-singleton  Alloy, one replica on the system pool: Kubernetes events
+#   alloy-logs       Alloy, a DaemonSet on every node - zone, GPU and spot nodes too: the pod logs
+#                    of its own node only, read from /var/log/pods
+#   kube-state-metrics, OpenCost  on the system pool
+#
+# OpenCost prices every node from Azure's public retail prices (prices.azure.com) - spot nodes at the
+# spot price - and splits the cost by namespace and pod; its metrics go to the stack, where they can be
+# grouped by the namespace labels platform/team, platform/cost-center and platform/zone. It reads
+# the cluster's usage back from the stack's Prometheus, with the same token the collectors write
+# with (the chart requires that), hence metrics:read on it.
+#
+# The stack's URLs, user IDs and token come from the Secret grafana-cloud (key-vault.yaml); the
+# chart keeps the credentials in infra-observability for Alloy and OpenCost.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: k8s-monitoring
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: k8s-monitoring
+  targetNamespace: infra-observability
+  storageNamespace: infra-observability
+  chart:
+    spec:
+      chart: k8s-monitoring
+      version: "4.5.2"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+      interval: 12h
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: Secret
+      name: grafana-cloud
+      valuesKey: prometheus-url
+      targetPath: destinations.grafanaCloudMetrics.url
+    - kind: Secret
+      name: grafana-cloud
+      valuesKey: prometheus-username
+      targetPath: destinations.grafanaCloudMetrics.auth.username
+    - kind: Secret
+      name: grafana-cloud
+      valuesKey: token
+      targetPath: destinations.grafanaCloudMetrics.auth.password
+    - kind: Secret
+      name: grafana-cloud
+      valuesKey: loki-url
+      targetPath: destinations.grafanaCloudLogs.url
+    - kind: Secret
+      name: grafana-cloud
+      valuesKey: loki-username
+      targetPath: destinations.grafanaCloudLogs.auth.username
+    - kind: Secret
+      name: grafana-cloud
+      valuesKey: token
+      targetPath: destinations.grafanaCloudLogs.auth.password
+    - kind: Secret
+      name: grafana-cloud
+      valuesKey: prometheus-query-url
+      targetPath: telemetryServices.opencost.opencost.prometheus.external.url
+  values:
+    cluster:
+      name: ${cluster_name}
+
+    destinations:
+      grafanaCloudMetrics:
+        type: prometheus
+        auth:
+          type: basic
+      grafanaCloudLogs:
+        type: loki
+        auth:
+          type: basic
+
+    clusterMetrics:
+      enabled: true
+      collector: alloy-metrics
+      # The namespaces' owner labels and contact (kube-state-metrics below), which the default allow
+      # list leaves out.
+      kube-state-metrics:
+        metricsTuning:
+          includeMetrics:
+            - kube_namespace_labels
+            - kube_namespace_annotations
+    costMetrics:
+      enabled: true
+      collector: alloy-metrics
+    clusterEvents:
+      enabled: true
+      collector: alloy-singleton
+    podLogsViaLoki:
+      enabled: true
+      collector: alloy-logs
+
+    # Every Alloy runs non-root with no capability, but the log reader, which reads the root-owned
+    # log files of its node (read-only) - see namespace.yaml.
+    collectorCommon:
+      alloy:
+        alloy:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 473
+            runAsGroup: 473
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: []
+            seccompProfile:
+              type: RuntimeDefault
+        global:
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 473
+            runAsGroup: 473
+            fsGroup: 473
+            seccompProfile:
+              type: RuntimeDefault
+
+    collectors:
+      alloy-metrics:
+        presets: [clustered, statefulset]
+        alloy:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+        controller:
+          nodeSelector:
+            kubernetes.azure.com/mode: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+      alloy-singleton:
+        presets: [singleton]
+        alloy:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+        controller:
+          nodeSelector:
+            kubernetes.azure.com/mode: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+      alloy-logs:
+        presets: [filesystem-log-reader, daemonset]
+        alloy:
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["DAC_READ_SEARCH"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+        controller:
+          podSecurityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          # Every node: the system pool's taint, the zones', spot and GPU taints, and the startup
+          # taints of a node that is still coming up.
+          tolerations:
+            - operator: Exists
+
+    alloy-operator:
+      nodeSelector:
+        kubernetes.azure.com/mode: system
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+      podSecurityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+      waitForAlloyRemoval:
+        nodeSelector:
+          kubernetes.azure.com/mode: system
+        tolerations:
+          - key: CriticalAddonsOnly
+            operator: Exists
+
+    telemetryServices:
+      kube-state-metrics:
+        deploy: true
+        # Who owns each namespace (Azure Policy: namespace-ownership) and its zone, as
+        # kube_namespace_labels, so that cost and usage can be grouped by team and cost centre.
+        metricLabelsAllowlist:
+          - namespaces=[platform/team,platform/cost-center,platform/zone]
+        metricAnnotationsAllowList:
+          - namespaces=[platform/contact]
+        nodeSelector:
+          kubernetes.azure.com/mode: system
+        tolerations:
+          - key: CriticalAddonsOnly
+            operator: Exists
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+      opencost:
+        deploy: true
+        metricsSource: grafanaCloudMetrics
+        opencost:
+          exporter:
+            defaultClusterId: ${cluster_name}
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+          prometheus:
+            existingSecretName: grafanacloudmetrics-k8s-monitoring
+            username_key: username
+            password_key: password
+          ui:
+            enabled: false
+          nodeSelector:
+            kubernetes.azure.com/mode: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
