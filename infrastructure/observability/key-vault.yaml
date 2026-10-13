@@ -9,7 +9,6 @@
 # and, for OpenCost, which reads the cluster's usage back from the stack's Prometheus (optional - it
 # stays off without them):
 #
-#   opencost-deploy          "true"
 #   prometheus-query-url     the stack's Prometheus query API (https://prometheus-prod-NN-....grafana.net/api/prom)
 #   prometheus-username      the stack's Prometheus (Mimir) instance ID
 #   prometheus-read-token    a token with metrics:read
@@ -27,8 +26,33 @@ spec:
   secretStoreRef:
     kind: SecretStore
     name: key-vault
+  # The values the HelmRelease merges, written out as YAML with every value quoted: Flux's
+  # valuesFrom.targetPath parses a value as `helm --set` does, which turns the numeric user IDs into
+  # floats (1.872197e+06) and Fleet Management refuses them.
   target:
     name: grafana-cloud
+    template:
+      engineVersion: v2
+      data:
+        values.yaml: |
+          collectorCommon:
+            alloy:
+              remoteConfig:
+                url: {{ index . "remote-config-url" | toJson }}
+                auth:
+                  username: {{ index . "remote-config-username" | toJson }}
+                  password: {{ index . "remote-config-password" | toJson }}
+          {{- if index . "prometheus-read-token" }}
+          telemetryServices:
+            opencost:
+              deploy: true
+              opencost:
+                prometheus:
+                  username: {{ index . "prometheus-username" | toJson }}
+                  password: {{ index . "prometheus-read-token" | toJson }}
+                  external:
+                    url: {{ index . "prometheus-query-url" | toJson }}
+          {{- end }}
   dataFrom:
     - extract:
         key: secret/flux-system--grafana-cloud
