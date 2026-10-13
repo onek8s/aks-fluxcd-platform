@@ -164,10 +164,12 @@ metadata:
 spec:
   # Only GPU pods tolerate its taint, and only this NodePool offers GPUs: the weight orders nothing.
   weight: 5
-  # One Standard_NC40ads_H100_v5 (40 vCPU, 320 GiB, one H100) at a time in the lab. The GPU VM family
-  # has its own vCPU quota in the subscription (StandardNCadsH100v5Family), which Azure starts at 0.
+  # How many GPU vCPUs the zone may run, per cluster (cluster-settings.yaml gpu_cpu_limit): 40 is one
+  # Standard_NC40ads_H100_v5 (40 vCPU, 320 GiB, one H100). 0 - the dev lab's - means NAP never creates a
+  # GPU node, and a GPU pod stays Pending; so does an unset setting (the default), never unlimited. The GPU VM family also has its own vCPU quota in the
+  # subscription (StandardNCadsH100v5Family), which Azure starts at 0.
   limits:
-    cpu: "40"
+    cpu: ${gpu_cpu_limit:=0}
     memory: 330Gi
   # A GPU node is the most expensive thing in the cell: gone a minute after it is empty.
   disruption:

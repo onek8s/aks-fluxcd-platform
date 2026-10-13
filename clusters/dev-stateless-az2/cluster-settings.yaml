@@ -54,3 +54,7 @@ data:
   # one level below dns_zone_name for the platform's wildcard certificate (*.onek8s.lol).
   # GitHub's webhooks point at it (aks-terraform, Flux webhooks workflow).
   flux_webhook_hostname: "flux-webhook-dev-stateless-az2.onek8s.lol"
+  # GPU vCPUs each zone's GPU NodePool may run (infrastructure/node-pools, <zone>gpu). 0 in the dev
+  # lab: GPU nodes are too expensive to run here, so none is ever created; the pools and the GPU
+  # policies are still in place and tested by dry runs.
+  gpu_cpu_limit: "0"

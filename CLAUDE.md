@@ -34,7 +34,8 @@ and `tenants/`). Specific to it:
 - **GPU NodePools** (`infrastructure/node-pools`, `<zone>gpu`): NVIDIA H100 v5 on-demand, taint
   `platform/accelerator=nvidia-gpu`, AKS managed GPU stack (AKSNodeClass tag `EnableManagedGPUExperience`).
   Apps label pods `platform/accelerator: nvidia-gpu` and request `nvidia.com/gpu`; the policy mutation adds
-  the toleration.
+  the toleration. **No GPU nodes in the dev lab**: `gpu_cpu_limit: "0"` in the cells' cluster-settings.yaml
+  (default 0 if unset) - the user does not want them run here.
 - **Observability** (`infrastructure/observability`): Grafana k8s-monitoring 4.5.2 (Alloy, kube-state-metrics,
   OpenCost) in `infra-observability`; stack endpoints + token from the vault secret `flux-system--grafana-cloud`
   (JSON, see its key-vault.yaml) via `valuesFrom`. `infra-observability` is a platform namespace in the

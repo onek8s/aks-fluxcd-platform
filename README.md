@@ -355,7 +355,7 @@ aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default No
 | --- | --- | --- | --- | --- | --- |
 | `intfi`, `intse`, `extfi`, `extse` | on-demand | amd64 and arm64 | `platform/zone=<zone>:NoSchedule` | 10 | 16 vCPU, 64 GiB |
 | `intfispot`, `intsespot`, `extfispot`, `extsespot` | spot | amd64 and arm64 | the zone's, and `platform/capacity=spot:NoSchedule` | 50 | 8 vCPU, 32 GiB |
-| `intfigpu`, `intsegpu`, `extfigpu`, `extsegpu` | on-demand, NVIDIA H100 (NC H100 v5) | amd64 | the zone's, and `platform/accelerator=nvidia-gpu:NoSchedule` | 5 | 40 vCPU, 330 GiB (one `Standard_NC40ads_H100_v5`) |
+| `intfigpu`, `intsegpu`, `extfigpu`, `extsegpu` | on-demand, NVIDIA H100 (NC H100 v5) | amd64 | the zone's, and `platform/accelerator=nvidia-gpu:NoSchedule` | 5 | `gpu_cpu_limit` vCPU (cluster-settings.yaml): **0 in the dev lab**, 40 = one `Standard_NC40ads_H100_v5` |
 
 - Every node carries the label `platform/zone=<zone>`, runs Azure Linux with encryption at host, and
   is in the cell's availability zone and the zone's own subnet (`nap_subnet_id_<zone>`), behind the
@@ -399,6 +399,8 @@ that is not amd64.
 - AKS's managed GPU stack (preview, the `AKSNodeClass` tag `EnableManagedGPUExperience`; aks-terraform
   registers the feature): AKS installs the NVIDIA driver, the device plugin and the DCGM metrics
   exporter, so there is no GPU operator to run.
+- **The dev lab runs no GPU nodes**: its cells set `gpu_cpu_limit: "0"`, so a GPU pod there stays Pending
+  (the policies are tested by dry runs). An environment that offers GPUs sets the limit per cluster.
 - The node is removed a minute after its last GPU pod. The subscription's quota for the family
   (`StandardNCadsH100v5Family`) starts at 0 and is raised with aks-terraform's vCPU quota workflow.
 
