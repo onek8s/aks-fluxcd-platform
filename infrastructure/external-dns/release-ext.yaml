@@ -1,6 +1,6 @@
 # external-dns for the external gateways - the external zones' and the platform's, the Gateways
 # labelled `platform/exposure: ext`: for every hostname of an HTTPRoute attached to one, an A record
-# in the public zone ${dns_zone_name} to the gateway's address (its load balancer's, which Traefik
+# in the public zone ${dns_zone_name} to the gateway's address (its load balancer's, which App Routing
 # copies into the Gateway's status), and a TXT record beside it marking it as this cluster's.
 #
 # A route that names a hostname every cell serves - one Azure Traffic Manager answers for

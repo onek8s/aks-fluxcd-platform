@@ -11,8 +11,9 @@ and `tenants/`). Specific to it:
   merge (webhook receivers); check the result with aks-terraform's Cluster status workflow.
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
   substitutions such as `nap_subnet_id_<zone>`, `key_vault_url_<ns>`, `nap_availability_zone`).
-- **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Traefik
-  gateway, ESO (`controllerClass: <zone>`), Gateway, certificate, Cilium baseline. Their Traefik and
+- **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Gateway
+  (class `approuting-istio`, AKS App Routing; options in the ConfigMap `gateway`), ESO
+  (`controllerClass: <zone>`), certificate, Cilium baseline. Their gateway pods and
   ESO run on the **system pool** (`kubernetes.azure.com/mode: system`, toleration
   `CriticalAddonsOnly`) so a zone without applications has no nodes.
 - **NodePools** (`infrastructure/node-pools`): per zone an on-demand and a spot NodePool (spot

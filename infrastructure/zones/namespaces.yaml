@@ -1,7 +1,13 @@
 # The zone's two platform namespaces - reserved application names, like every `<zone>-<app>`
 # (design section 6). `platform/zone` puts them in the zone; `platform/role: platform` keeps them
-# out of the application baseline (cilium.yaml), since their policies are the platform's own. Held
-# to the restricted Pod Security Standard: both charts meet it as they are.
+# out of the application baseline (cilium.yaml), since their policies are the platform's own.
+#
+# `<zone>-secrets` is held to the restricted Pod Security Standard: the chart meets it as it is.
+# `<zone>-gateway` enforces baseline and audits / warns on restricted: the gateway pods are App
+# Routing's, from its Istio gateway template, which sets no seccomp profile unless the add-on is
+# configured to, and their security context is not on the add-on's customization allow list. They
+# run non-root, every capability dropped, no privilege escalation, a read-only root file system; the
+# one sysctl (net.ipv4.ip_unprivileged_port_start, for 443) is a safe one.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -9,7 +15,7 @@ metadata:
   labels:
     platform/zone: ${zone}
     platform/role: platform
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
 ---
