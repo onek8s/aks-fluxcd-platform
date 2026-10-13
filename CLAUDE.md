@@ -40,8 +40,10 @@ and `tenants/`). Specific to it:
   Management sets it up (user's choice, D48): `alloy-daemon` DaemonSet (privileged, hostNetwork/PID, `large`
   preset with requests lowered to 100m/256Mi - the user's choice over a 3rd system node) with **remote config** - pipelines are managed in Grafana Cloud, not here -
   plus node-exporter, kube-state-metrics, Beyla k8s cache; OpenCost off until the vault secret has
-  `opencost-deploy` and a metrics:read token. Secret `flux-system--grafana-cloud` (JSON, see key-vault.yaml)
-  via `valuesFrom`. `infra-observability` is a platform namespace in the landing zone's exclusions. The zone
+  a metrics:read token (prometheus-*). Secret `flux-system--grafana-cloud` (JSON, see key-vault.yaml)
+  via `valuesFrom` - as one `values.yaml` that ESO templates with every value quoted: **Flux's
+  `valuesFrom.targetPath` parses like `helm --set`, so a numeric user ID became `1.872197e+06`** and Fleet
+  Management refused it. ESO's template data is `map[string]string`: sprig `hasKey` fails, use `index`. `infra-observability` is a platform namespace in the landing zone's exclusions. The zone
   NSGs do not open Alloy's clustering port 12345 between subnets. On AKS the chart refuses to render unless every Alloy
   collector (and kube-state-metrics) has the pod annotation `kubernetes.azure.com/set-kube-service-host-fqdn: "true"`;
   it detects AKS from live node labels (`lookup`), so an offline `helm template` does not catch it.

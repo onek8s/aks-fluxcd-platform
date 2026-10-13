@@ -420,7 +420,7 @@ that is not amd64.
   Fleet Management token cannot, so it runs only once the vault secret carries a `metrics:read` token.
 - The stack's details are one secret in the platform vault, `flux-system--grafana-cloud`, a JSON
   object: `remote-config-url`, `remote-config-username`, `remote-config-password`, and for OpenCost
-  `opencost-deploy: "true"`, `prometheus-query-url`, `prometheus-username`, `prometheus-read-token`
+  `prometheus-query-url`, `prometheus-username`, `prometheus-read-token`
   (see `key-vault.yaml`). Until it exists, the HelmRelease waits. aks-terraform's Store secret
   workflow puts it into the vault without the value showing anywhere.
 

@@ -40,42 +40,14 @@ spec:
     crds: CreateReplace
     remediation:
       retries: 3
+  # The Fleet Management URL, user and token, and OpenCost's settings once the vault has them, as one
+  # YAML document (key-vault.yaml). OpenCost reads the cluster's usage back from the stack's Prometheus,
+  # which the Fleet Management token cannot: it runs once the vault secret also has a token with
+  # metrics:read (prometheus-query-url, prometheus-username, prometheus-read-token).
   valuesFrom:
     - kind: Secret
       name: grafana-cloud
-      valuesKey: remote-config-url
-      targetPath: collectorCommon.alloy.remoteConfig.url
-    - kind: Secret
-      name: grafana-cloud
-      valuesKey: remote-config-username
-      targetPath: collectorCommon.alloy.remoteConfig.auth.username
-    - kind: Secret
-      name: grafana-cloud
-      valuesKey: remote-config-password
-      targetPath: collectorCommon.alloy.remoteConfig.auth.password
-    # OpenCost reads the cluster's usage back from the stack's Prometheus, which the Fleet Management
-    # token cannot: it runs once the vault secret has `opencost-deploy: "true"` and a token with
-    # metrics:read (prometheus-query-url, prometheus-username, prometheus-read-token).
-    - kind: Secret
-      name: grafana-cloud
-      valuesKey: opencost-deploy
-      targetPath: telemetryServices.opencost.deploy
-      optional: true
-    - kind: Secret
-      name: grafana-cloud
-      valuesKey: prometheus-query-url
-      targetPath: telemetryServices.opencost.opencost.prometheus.external.url
-      optional: true
-    - kind: Secret
-      name: grafana-cloud
-      valuesKey: prometheus-username
-      targetPath: telemetryServices.opencost.opencost.prometheus.username
-      optional: true
-    - kind: Secret
-      name: grafana-cloud
-      valuesKey: prometheus-read-token
-      targetPath: telemetryServices.opencost.opencost.prometheus.password
-      optional: true
+      valuesKey: values.yaml
   values:
     cluster:
       name: ${cluster_name}
