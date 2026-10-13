@@ -10,7 +10,8 @@
 #
 # and the cluster's own from cluster-settings.yaml (key_vault_url, azure_tenant_id, quote).
 #
-# Everything here runs on the zone's own nodes (the zone's NAP NodePools, infrastructure/node-pools):
+# The zone's two platform namespaces run on the system pool, not on the zone's nodes, so that a zone
+# without applications has no nodes (its NodePools, infrastructure/node-pools, scale to zero):
 #
 #   <zone>-gateway   Traefik Proxy for the zone - GatewayClass traefik-<zone>, one Gateway
 #                    `<zone>` with one HTTPS listener for *.<zone domain>, which only the zone's
