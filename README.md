@@ -20,7 +20,8 @@ clusters/
   dev-stateless-az1/      # aks-dev-stateless-az1, a cell in availability zone 1
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
-                          # `platform-gateway`, `external-dns`, `flux-webhook` and `node-pools`
+                          # `platform-gateway`, `external-dns`, `flux-webhook`, `node-pools`
+                          # and `image-verification`
     zones.yaml            # Flux Kustomizations `zone-<zone>` -> infrastructure/zones, one per zone
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
   dev-stateless-az2/      # aks-dev-stateless-az2, the same in availability zone 2
@@ -36,6 +37,8 @@ infrastructure/
                           # and Azure Private DNS (internal)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
   node-pools/             # the isolation zones' node auto provisioning NodePools and AKSNodeClasses
+  image-verification/     # Ratify's configuration for AKS Image Integrity: the platform's signing
+                          # certificate, the registry's signatures, the Notation trust policy
   storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
 tenants/
   ext-fi-example/         # what the `example` team's application in the ext-fi zone needs in its
@@ -49,7 +52,7 @@ tenants/
 - `infrastructure/controllers/` comes first: its Kustomization waits for the controllers, so what
   needs their CRDs follows it with `dependsOn: [{ name: infra-controllers }]` - `infra-configs`, the
   zones (which also wait for `node-pools`), `platform-gateway`, `flux-webhook` (also after
-  `platform-gateway`). `external-dns` and `node-pools` follow nothing. Nothing waits for a
+  `platform-gateway`). `external-dns`, `node-pools` and `image-verification` follow nothing. Nothing waits for a
   zone, so one that does not come up holds back no other.
 - Adding an isolation zone - a new country is two - is a `zone-<zone>` Kustomization in `zones.yaml`,
   a NodePool file in `infrastructure/node-pools`, and the zone in aks-terraform (`shared/`:
@@ -238,6 +241,23 @@ and points a push webhook per cluster at its `flux_webhook_hostname`, on two rep
 notification-controller serves every Receiver on the same service, under
 `/hook/sha256(token + name + namespace)`, so the one route above reaches both. Without the webhook,
 Flux still polls the repository.
+
+### Image signatures
+
+Every image the environment's registry builds is signed by the platform (aks-terraform's **Sign
+images** workflow, with the certificate `image-signing` in the platform vault), and AKS Image
+Integrity checks each application pod's image at admission: Ratify, which AKS runs in
+`gatekeeper-system`, answers the Azure Policy add-on's question "is this image signed with Notation"
+for the assignment `k8s-image-integrity` (azure-landing-zone `stacks/aks-policy`). Image Integrity is
+in preview and only audits, so an unsigned image is reported, not refused.
+
+`infrastructure/image-verification` is Ratify's configuration: a `KeyManagementProvider` with the
+certificate from the platform vault, a `Store` for the signatures in the registry and a Notation
+`Verifier` that trusts signatures by that certificate's subject and no others. Ratify reads the vault
+and the registry as the environment's shared identity `id-<region>-<env>-shared-ratify` (aks-terraform
+`shared/`), through each cluster's federated credential for `gatekeeper-system/ratify-admin`; the
+values come from `cluster-settings.yaml` (`image_verification_client_id`,
+`image_signing_certificate_name`, `image_signing_subject`, `container_registry_login_server`).
 
 ### Platform gateway
 

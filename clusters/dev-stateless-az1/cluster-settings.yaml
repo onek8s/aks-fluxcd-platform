@@ -39,6 +39,13 @@ data:
   nap_subnet_id_ext_fi: "${nap_subnet_id_ext_fi}"
   nap_subnet_id_ext_se: "${nap_subnet_id_ext_se}"
   nap_availability_zone: "${nap_availability_zone}"
+  # Image Integrity (infrastructure/image-verification): the identity Ratify reads the signatures and
+  # the signing certificate as, the certificate in the platform vault and its subject - the only
+  # signer Ratify trusts - and the registry the signatures are in.
+  image_verification_client_id: "${image_verification_client_id}"
+  image_signing_certificate_name: "${image_signing_certificate_name}"
+  image_signing_subject: "${image_signing_subject}"
+  container_registry_login_server: "${container_registry_login_server}"
   # A double quote, for the Kustomizations that substitute from this ConfigMap: kustomize drops the
   # quotes around "${...}", so a value that must stay a string is written ${quote}...${quote}.
   quote: '"'

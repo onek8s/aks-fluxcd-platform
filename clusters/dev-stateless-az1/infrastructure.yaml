@@ -141,6 +141,31 @@ spec:
     substituteFrom:
       - kind: ConfigMap
         name: cluster-settings
+---
+# Ratify's configuration for AKS Image Integrity (infrastructure/image-verification): which
+# certificate signs the platform's images, where the signatures are and as which identity Ratify reads
+# them, from cluster-settings.yaml. Needs Ratify's CRDs, which AKS installs with Image Integrity
+# (aks-terraform: image_integrity_enabled). Nothing waits for it: without it, unsigned and signed
+# images alike are reported, and nothing is refused.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: image-verification
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/image-verification
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
 # No `storage` Kustomization: the cell is stateless. AKS runs none of its CSI drivers here
 # (aks-terraform: persistent_storage_enabled = false), and Azure Policy keeps it that way
 # (azure-landing-zone stacks/aks-policy, `no-persistent-storage`, effect Deny): no StorageClass,
