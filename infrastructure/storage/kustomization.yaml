@@ -1,8 +1,8 @@
-# Storage that outlives the cluster, and the admission policy that holds the users' namespaces to it. Each cluster pulls this directory in through its `storage` Flux
+# Storage that outlives the cluster. Azure Policy holds the users' namespaces to it
+# (azure-landing-zone stacks/aks-policy, `portable-storage-only`). Each cluster pulls this directory in through its `storage` Flux
 # Kustomization, which fills in where the disks go from cluster-settings.yaml - see
 # clusters/<cluster>/infrastructure.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - storageclass.yaml
-  - admission-policy.yaml

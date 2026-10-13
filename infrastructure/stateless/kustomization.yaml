@@ -1,7 +1,0 @@
-# A cluster without persistent storage, and the admission policy that keeps it that way. A stateless
-# cluster pulls this directory in, instead of infrastructure/storage, through its `stateless` Flux
-# Kustomization - see clusters/dev-stateless-az1/infrastructure.yaml.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - admission-policy.yaml

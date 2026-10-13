@@ -20,8 +20,7 @@ clusters/
   dev-stateless-az1/      # aks-dev-stateless-az1, a cell in availability zone 1
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
-                          # `platform-gateway`, `external-dns`, `flux-webhook`, `node-pools`
-                          # and `stateless`
+                          # `platform-gateway`, `external-dns`, `flux-webhook` and `node-pools`
     zones.yaml            # Flux Kustomizations `zone-<zone>` -> infrastructure/zones, one per zone
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
   dev-stateless-az2/      # aks-dev-stateless-az2, the same in availability zone 2
@@ -37,10 +36,7 @@ infrastructure/
                           # and Azure Private DNS (internal)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
   node-pools/             # the isolation zones' node auto provisioning NodePools and AKSNodeClasses
-  stateless/              # for a cluster without persistent storage: the admission policy that
-                          # refuses every StorageClass, PersistentVolume and claim
-  storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster, and
-                          # the admission policy that makes it the only storage users get
+  storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
 tenants/
   ext-fi-example/         # what the `example` team's application in the ext-fi zone needs in its
                           # namespace; its repository, onek8s/aks-fluxcd-example, is synced by
@@ -53,7 +49,7 @@ tenants/
 - `infrastructure/controllers/` comes first: its Kustomization waits for the controllers, so what
   needs their CRDs follows it with `dependsOn: [{ name: infra-controllers }]` - `infra-configs`, the
   zones (which also wait for `node-pools`), `platform-gateway`, `flux-webhook` (also after
-  `platform-gateway`). `external-dns`, `node-pools` and `stateless` follow nothing. Nothing waits for a
+  `platform-gateway`). `external-dns` and `node-pools` follow nothing. Nothing waits for a
   zone, so one that does not come up holds back no other.
 - Adding an isolation zone - a new country is two - is a `zone-<zone>` Kustomization in `zones.yaml`,
   a NodePool file in `infrastructure/node-pools`, and the zone in aks-terraform (`shared/`:
@@ -266,13 +262,13 @@ attached to the next one:
 - `StandardSSD_ZRS`: zone-redundant, so the disk attaches to a node in any zone of the region.
 - `reclaimPolicy: Retain`: deleting the PVC, or the cluster, never deletes the disk. A disk nobody
   needs any more is deleted in Azure by hand.
-- **The only storage in the users' namespaces.** The `portable-storage-only`
-  ValidatingAdmissionPolicy refuses a PersistentVolumeClaim on any other class - or on none, which
-  the API server would turn into AKS's `default` - and a pod with an inline `csi` volume. Every
-  namespace is a user's but Kubernetes' and AKS's (`kube-*`) and the platform's own (`flux-system`,
-  `external-secrets`, `external-dns` and the zones' and the platform's gateway and secrets
-namespaces), listed in the binding in
-  `infrastructure/storage/admission-policy.yaml`. Only creation is checked.
+- **The only storage in the users' namespaces.** Azure Policy - the platform's one policy engine,
+  assigned by azure-landing-zone `stacks/aks-policy` - refuses a PersistentVolumeClaim on any other
+  class (`portable-storage-only`, effect Deny) - or on none, which the API server would turn into
+  AKS's `default` - and a pod with an inline `csi` volume. Every namespace is a user's but
+  Kubernetes' and AKS's and the platform's own (`flux-system`, `external-secrets`, `external-dns` and
+  the zones' and the platform's gateway and secrets namespaces), the assignment's excluded
+  namespaces. Only creation is checked.
 - Not the default class (AKS keeps `default` as that), so a claim names it:
 
 ```yaml
@@ -298,10 +294,10 @@ nothing to be provisioned from. `clusters/dev-stateless-az<N>` leaves out the `s
 aks-terraform does not send.
 
 AKS's addon-manager still creates two StorageClasses, `default` and `managed-csi-premium-v2`, with
-`addonmanager.kubernetes.io/mode: EnsureExists` - it creates them again if they are deleted. So the
-cluster's `stateless` Kustomization applies `infrastructure/stateless`: the `no-persistent-storage`
-ValidatingAdmissionPolicy refuses the creation of any StorageClass or PersistentVolume, by anyone,
-of a PersistentVolumeClaim in any namespace but `kube-system`, and of a pod with an inline `csi` or
+`addonmanager.kubernetes.io/mode: EnsureExists` - it creates them again if they are deleted. So Azure
+Policy's `no-persistent-storage` (azure-landing-zone `stacks/aks-policy`, effect Deny, on the
+stateless clusters only) refuses the creation of any StorageClass or PersistentVolume, by anyone, of
+a PersistentVolumeClaim in any namespace but `kube-system`, and of a pod with an inline `csi` or
 `ephemeral` volume. With it in place a cluster admin deletes AKS's two classes once, and the
 addon-manager cannot bring them back:
 

@@ -16,7 +16,8 @@
 #
 # It is not the default class - AKS keeps `default` as that and puts it back if changed - so a PVC
 # names `storageClassName: portable-disk`. In the users' namespaces it is the only class there is:
-# admission-policy.yaml refuses a claim on any other, or on none.
+# Azure Policy (azure-landing-zone stacks/aks-policy, `portable-storage-only`) refuses a claim on
+# any other, or on none.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
