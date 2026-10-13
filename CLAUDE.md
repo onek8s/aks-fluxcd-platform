@@ -28,5 +28,7 @@ and `tenants/`). Specific to it:
 - **Platform namespaces have Cilium policies too** (CIS AKS 4.4.2): `external-dns` (API server, Entra ID,
   ARM), `external-secrets` (API server, Entra ID, Key Vault; webhook 10250 in from the cluster) and
   `platform-gateway` (443 in, notification-controller 9292 and istiod out), next to the zones'.
-  Every namespace the fleet creates sets its `default` ServiceAccount's `automountServiceAccountToken: false` (CIS 4.1.5).
+  Every namespace the fleet creates, and flux-system, sets its `default` ServiceAccount's
+  `automountServiceAccountToken: false` (CIS 4.1.5); `default`, `kube-public` and `kube-node-lease` are labelled
+  PSS restricted with a deny-all NetworkPolicy (`infrastructure/configs/kubernetes-namespaces.yaml`, prune disabled).
 - `clusters/dev-stateless-az2` stays even while that cluster is destroyed.
