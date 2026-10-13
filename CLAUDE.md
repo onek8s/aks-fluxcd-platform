@@ -38,7 +38,7 @@ and `tenants/`). Specific to it:
   (default 0 if unset) - the user does not want them run here.
 - **Observability** (`infrastructure/observability`): Grafana k8s-monitoring 4.5.2 as Grafana Cloud's Fleet
   Management sets it up (user's choice, D48): `alloy-daemon` DaemonSet (privileged, hostNetwork/PID, `large`
-  preset: 500m/1Gi per node) with **remote config** - pipelines are managed in Grafana Cloud, not here -
+  preset with requests lowered to 100m/256Mi - the user's choice over a 3rd system node) with **remote config** - pipelines are managed in Grafana Cloud, not here -
   plus node-exporter, kube-state-metrics, Beyla k8s cache; OpenCost off until the vault secret has
   `opencost-deploy` and a metrics:read token. Secret `flux-system--grafana-cloud` (JSON, see key-vault.yaml)
   via `valuesFrom`. `infra-observability` is a platform namespace in the landing zone's exclusions. The zone
