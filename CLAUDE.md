@@ -38,7 +38,8 @@ and `tenants/`). Specific to it:
   (default 0 if unset) - the user does not want them run here.
 - **Observability** (`infrastructure/observability`): Grafana k8s-monitoring 4.5.2 as Grafana Cloud's Fleet
   Management sets it up (user's choice, D48): `alloy-daemon` DaemonSet (privileged, hostNetwork/PID, `large`
-  preset with requests lowered to 100m/256Mi - the user's choice over a 3rd system node) with **remote config** - pipelines are managed in Grafana Cloud, not here -
+  preset with requests lowered to 100m/256Mi - the user's choice over a 3rd system node - and
+  `system-node-critical` so a full system node makes room for it) with **remote config** - pipelines are managed in Grafana Cloud, not here -
   plus node-exporter, kube-state-metrics, Beyla k8s cache; OpenCost off until the vault secret has
   a metrics:read token (prometheus-*). Secret `flux-system--grafana-cloud` (JSON, see key-vault.yaml)
   via `valuesFrom` - as one `values.yaml` that ESO templates with every value quoted: **Flux's
