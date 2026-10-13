@@ -3,9 +3,9 @@ kind: KeyManagementProvider
 metadata:
   name: platform
 spec:
+  # No refreshInterval: the add-on's CRD does not have it (yet), so a renewed certificate is read when
+  # Ratify restarts or this object changes.
   type: azurekeyvault
-  # A renewed certificate is picked up without a restart.
-  refreshInterval: 1h
   parameters:
     vaultURI: ${key_vault_url}
     certificates:
