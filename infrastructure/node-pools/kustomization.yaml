@@ -21,9 +21,10 @@
 #   - Consolidation of empty and under-used nodes at most 10 % of the NodePool's nodes at a time,
 #     and every node replaced after 30 days at the latest.
 #
-# A node is only created for a pending pod that tolerates a zone's taint: every zone's gateway and
-# External Secrets Operator (infrastructure/zones), which also tolerate spot, and the zone's
-# applications. A team's pods are to get the zone's node selector and toleration - and the spot
+# A node is only created for a pending pod that tolerates a zone's taint - an application of the
+# zone. The zones' gateways and External Secrets Operators (infrastructure/zones) run on the system
+# pool, so a zone without applications has no nodes, and its NodePools scale back to zero when its
+# last application pod is gone (consolidation of the empty node). A team's pods are to get the zone's node selector and toleration - and the spot
 # toleration for `platform/capacity: spot` - from the Azure Policy mutations of design section 14,
 # which are not in place yet, so for now the team's manifests say so themselves.
 apiVersion: kustomize.config.k8s.io/v1beta1

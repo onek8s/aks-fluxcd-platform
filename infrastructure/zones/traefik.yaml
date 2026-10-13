@@ -1,5 +1,5 @@
 # Traefik Proxy for the zone (design section 13): the Gateway API implementation of the zone, on
-# the zone's own nodes, serving the zone's one Gateway (gateway.yaml) and nothing else - its own
+# the system pool, serving the zone's one Gateway (gateway.yaml) and nothing else - its own
 # GatewayClass `traefik-${zone}`, picked out by label, and the provider scoped to that one Gateway.
 # Only the Gateway API provider: no Ingress, no IngressRoute (Kubernetes CRD) provider, no CRDs of
 # the chart's own - the Gateway API CRDs are AKS's.
@@ -94,17 +94,13 @@ spec:
         # Keeps the client's address on the requests Traefik sees, and sends traffic only to the
         # nodes a Traefik pod runs on.
         externalTrafficPolicy: Local
+    # The system pool, next to the platform's own gateway and controllers: a zone without
+    # applications then has no nodes at all - its NodePools scale to zero (infrastructure/node-pools).
     nodeSelector:
-      platform/zone: ${zone}
+      kubernetes.azure.com/mode: system
     tolerations:
-      - key: platform/zone
-        operator: Equal
-        value: ${zone}
-        effect: NoSchedule
-      - key: platform/capacity
-        operator: Equal
-        value: spot
-        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
     # One replica in the lab: a second buys no availability on one node. Replaced rather than
     # surged on an update.
     deployment:

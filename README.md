@@ -9,7 +9,7 @@ configuration named `platform` that points at `clusters/<cluster>`; everything e
 
 The stateless clusters are the design's **cells**, and every cell runs every **isolation zone** -
 `int-fi`, `int-se` (internal workloads of Finland and Sweden), `ext-fi`, `ext-se` (external ones) -
-as a bulkhead of its own: the zone's own nodes in the zone's own subnet, its own gateway, its own
+as a bulkhead of its own: the zone's own nodes in the zone's own subnet for its applications, its own gateway, its own
 External Secrets Operator, its own Key Vault, and Cilium policies that keep its workloads apart
 from every other zone's (design sections 4 to 7, 13 and 16).
 
@@ -67,8 +67,8 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | Controller | Namespace | Where | Chart |
 | --- | --- | --- | --- |
 | External Secrets Operator, the platform's: CRDs, webhook, controller `platform` | `external-secrets` | system pool | `external-secrets` 2.12.0 from https://charts.external-secrets.io |
-| External Secrets Operator, a zone's: controller `<zone>` | `<zone>-secrets` | the zone's nodes | the same |
-| Traefik Proxy, a zone's | `<zone>-gateway` | the zone's nodes | `traefik` 41.7.x (Traefik v3.7) from https://traefik.github.io/charts |
+| External Secrets Operator, a zone's: controller `<zone>` | `<zone>-secrets` | system pool | the same |
+| Traefik Proxy, a zone's | `<zone>-gateway` | system pool | `traefik` 41.7.x (Traefik v3.7) from https://traefik.github.io/charts |
 | Traefik Proxy, the platform's | `platform-gateway` | system pool | the same |
 | external-dns, external and internal | `external-dns` | system pool | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/ |
 
@@ -80,9 +80,11 @@ there too). The AKS Flux extension runs Flux multi-tenant: a HelmRelease or Kust
 namespaces, so the HelmRepository sits next to the HelmRelease.
 
 The system pool is tainted `CriticalAddonsOnly` (aks-terraform), so only the platform's own
-controllers run there - they tolerate it and select `kubernetes.azure.com/mode: system`. Everything of
-a zone runs on the zone's nodes: it selects `platform/zone: <zone>` and tolerates the zone's taint and
-the spot one, so node auto provisioning creates the zone's nodes for it.
+controllers run there - they tolerate it and select `kubernetes.azure.com/mode: system`. That includes
+every zone's gateway and External Secrets Operator, so a zone's own nodes are for its applications
+only: node auto provisioning creates them for an application pod that selects `platform/zone: <zone>`
+and tolerates the zone's taint, and removes them again when the zone has none - a zone without
+applications costs no nodes.
 
 ## Isolation zones
 
@@ -331,7 +333,8 @@ aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default No
   `Ds_v5`, `Ds_v6`, `Es_v5`, `Es_v6` (amd64) and `Dps_v6`, `Eps_v6` (arm64).
 - A pod that tolerates spot is tried on `<zone>spot` first, for its higher weight, and lands on
   `<zone>` when Azure has no spot capacity; one that does not stays off spot nodes, by their taint.
-  The zones' gateways and External Secrets Operators tolerate spot.
+  The team chooses, per application: tolerate spot (and pick an architecture, or leave it open) and
+  NAP uses whatever is available, cheapest first.
 - Empty and under-used nodes are consolidated after 5 minutes, at most 10 % of a NodePool's nodes at
   a time, and every node is replaced after 30 days at the latest.
 
