@@ -1,6 +1,7 @@
 # The ext-fi isolation zone's nodes (external workloads of Finland), provisioned by node auto
 # provisioning (Karpenter): the zone's AKSNodeClass and its two NodePools, `extfi` on on-demand VMs
-# and `extfispot` on Spot VMs. See kustomization.yaml for what every zone shares.
+# and `extfispot` on Spot VMs, and its GPU AKSNodeClass and NodePool `extfigpu`. See kustomization.yaml
+# for what every zone shares.
 apiVersion: karpenter.azure.com/v1beta1
 kind: AKSNodeClass
 metadata:
@@ -132,3 +133,92 @@ spec:
         - key: karpenter.azure.com/sku-series
           operator: In
           values: ["Ds_v5", "Ds_v6", "Es_v5", "Es_v6", "Dps_v6", "Eps_v6"]
+---
+# The zone's GPU nodes (design decision D42): NVIDIA H100, on-demand, created only for a pod that asks
+# for nvidia.com/gpu and is labelled platform/accelerator: nvidia-gpu (Azure Policy adds the
+# toleration), removed a minute after the last such pod is gone. AKS installs and runs the NVIDIA
+# driver, device plugin and DCGM metrics exporter on them (managed GPU, preview - the tag below;
+# aks-terraform registers ManagedGPUExperiencePreview).
+apiVersion: karpenter.azure.com/v1beta1
+kind: AKSNodeClass
+metadata:
+  name: extfigpu
+  annotations:
+    kubernetes.io/description: "GPU nodes of the ext-fi zone"
+spec:
+  imageFamily: AzureLinux
+  vnetSubnetID: "${nap_subnet_id_ext_fi}"
+  security:
+    encryptionAtHost: true
+  tags:
+    platform-zone: ext-fi
+    platform-accelerator: nvidia-gpu
+    EnableManagedGPUExperience: "true"
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: extfigpu
+  annotations:
+    kubernetes.io/description: "ext-fi zone, NVIDIA GPU, on-demand, amd64"
+spec:
+  # Only GPU pods tolerate its taint, and only this NodePool offers GPUs: the weight orders nothing.
+  weight: 5
+  # One Standard_NC40ads_H100_v5 (40 vCPU, 320 GiB, one H100) at a time in the lab. The GPU VM family
+  # has its own vCPU quota in the subscription (StandardNCadsH100v5Family), which Azure starts at 0.
+  limits:
+    cpu: "40"
+    memory: 330Gi
+  # A GPU node is the most expensive thing in the cell: gone a minute after it is empty.
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
+    budgets:
+      - nodes: "10%"
+  template:
+    metadata:
+      labels:
+        platform/zone: ext-fi
+        platform/accelerator: nvidia-gpu
+        kubernetes.azure.com/ebpf-dataplane: cilium
+    spec:
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: extfigpu
+      expireAfter: 720h
+      taints:
+        - key: platform/zone
+          value: ext-fi
+          effect: NoSchedule
+        - key: platform/accelerator
+          value: nvidia-gpu
+          effect: NoSchedule
+      startupTaints:
+        - key: node.cilium.io/agent-not-ready
+          value: "true"
+          effect: NoExecute
+      requirements:
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["${nap_availability_zone}"]
+        # The only GPU VMs with VNet encryption (and encryption at host): NC H100 v5. The series name
+        # alone does not fix the GPU, so the GPU is required too.
+        - key: karpenter.azure.com/sku-series
+          operator: In
+          values: ["NCads_v5"]
+        - key: karpenter.azure.com/sku-gpu-manufacturer
+          operator: In
+          values: ["nvidia"]
+        - key: karpenter.azure.com/sku-gpu-name
+          operator: In
+          values: ["H100"]

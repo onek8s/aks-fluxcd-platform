@@ -5,7 +5,7 @@
 # Flux Kustomization - see clusters/dev-stateless-az1/infrastructure.yaml.
 #
 # Every zone - int-fi and int-se for internal workloads, ext-fi and ext-se for external ones - has
-# one AKSNodeClass and two NodePools:
+# one AKSNodeClass and two NodePools for its ordinary nodes, and a GPU AKSNodeClass and NodePool:
 #
 #   - `<zone>`, on-demand, and `<zone>spot`, on Spot VMs with the taint
 #     `platform/capacity=spot:NoSchedule` and a higher weight, so that NAP tries spot first for a pod
@@ -20,13 +20,19 @@
 #     (`nap_subnet_id_<zone>`), both from cluster-settings.yaml, which aks-terraform fills in.
 #   - Consolidation of empty and under-used nodes at most 10 % of the NodePool's nodes at a time,
 #     and every node replaced after 30 days at the latest.
+#   - `<zone>gpu`, its own class and NodePool (design decision D42): NVIDIA H100 v5 on-demand VMs
+#     (the only GPU VMs with VNet encryption), amd64, the taint `platform/accelerator=nvidia-gpu`,
+#     AKS's managed GPU stack (driver, device plugin, DCGM exporter). A pod gets a GPU node by asking
+#     for `nvidia.com/gpu` and carrying the label `platform/accelerator: nvidia-gpu`, which an Azure
+#     Policy mutation turns into the toleration. Empty for a minute, the node is removed.
 #
 # A node is only created for a pending pod that tolerates a zone's taint - an application of the
 # zone. The zones' gateways and External Secrets Operators (infrastructure/zones) run on the system
 # pool, so a zone without applications has no nodes, and its NodePools scale back to zero when its
-# last application pod is gone (consolidation of the empty node). A team's pods are to get the zone's node selector and toleration - and the spot
-# toleration for `platform/capacity: spot` - from the Azure Policy mutations of design section 14,
-# which are not in place yet, so for now the team's manifests say so themselves.
+# last application pod is gone (consolidation of the empty node). A team's pods get the zone's node
+# selector and toleration - and the spot and GPU tolerations for `platform/capacity: spot` and
+# `platform/accelerator: nvidia-gpu` - from the Azure Policy mutations of design section 14
+# (azure-landing-zone stacks/aks-policy).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

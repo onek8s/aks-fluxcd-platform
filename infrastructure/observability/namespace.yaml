@@ -1,0 +1,26 @@
+# Privileged enforced, restricted audited and warned on: the log collector (alloy-logs, a DaemonSet)
+# reads the pods' log files from the node, a read-only hostPath of /var/log, which every standard but
+# privileged refuses. Everything else in the namespace meets restricted. The owner labels are the
+# platform's, like every namespace the platform creates (Azure Policy: namespace-ownership).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infra-observability
+  labels:
+    platform/role: platform
+    platform/team: platform
+    platform/cost-center: platform
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    platform/contact: https://github.com/onek8s/aks-fluxcd-platform/issues
+---
+# The default service account hands no token to a pod that names none (CIS AKS Benchmark 4.1.5);
+# every pod here runs as an account of its own.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: infra-observability
+automountServiceAccountToken: false
