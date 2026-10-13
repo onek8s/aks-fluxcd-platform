@@ -89,6 +89,10 @@ spec:
       alloy-daemon:
         presets: [large, root, host-storage, host-network, host-cgroup, clustered, service-discovery, filesystem-log-reader, daemonset]
         controller:
+          # AKS: the API server by its FQDN rather than the kubernetes Service, which a host-network
+          # pod cannot rely on (the chart refuses to render on AKS without it).
+          podAnnotations:
+            kubernetes.azure.com/set-kube-service-host-fqdn: "true"
           # Every node: the system pool's taint, the zones', spot and GPU taints, and the startup
           # taints of a node that is still coming up.
           tolerations:
@@ -124,6 +128,8 @@ spec:
           - operator: Exists
       kube-state-metrics:
         deploy: true
+        podAnnotations:
+          kubernetes.azure.com/set-kube-service-host-fqdn: "true"
         # Who owns each namespace (Azure Policy: namespace-ownership) and its zone, as
         # kube_namespace_labels and kube_namespace_annotations, so that cost and usage can be grouped
         # by team and cost centre.

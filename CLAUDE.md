@@ -42,7 +42,9 @@ and `tenants/`). Specific to it:
   plus node-exporter, kube-state-metrics, Beyla k8s cache; OpenCost off until the vault secret has
   `opencost-deploy` and a metrics:read token. Secret `flux-system--grafana-cloud` (JSON, see key-vault.yaml)
   via `valuesFrom`. `infra-observability` is a platform namespace in the landing zone's exclusions. The zone
-  NSGs do not open Alloy's clustering port 12345 between subnets.
+  NSGs do not open Alloy's clustering port 12345 between subnets. On AKS the chart refuses to render unless every Alloy
+  collector (and kube-state-metrics) has the pod annotation `kubernetes.azure.com/set-kube-service-host-fqdn: "true"`;
+  it detects AKS from live node labels (`lookup`), so an offline `helm template` does not catch it.
 - **Every namespace carries `platform/team`, `platform/cost-center` and annotation `platform/contact`**
   (Azure Policy `namespace-ownership`); the platform's own are `platform`.
 - `clusters/dev-stateless-az2` stays even while that cluster is destroyed.
