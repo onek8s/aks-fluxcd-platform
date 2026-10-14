@@ -63,3 +63,6 @@ and `tenants/`). Specific to it:
   pulls it in: aks-terraform gives each namespace with groups a Flux configuration `<ns>-access`, one Kustomization per
   `managed_namespaces.<ns>.groups.<role>` on that role's directory (Azure refuses two Kustomizations of one configuration on one path).
 - `clusters/dev-ext-stateless-az2` stays even while that cluster is destroyed.
+- **The dev cells run one 8 GiB system node** (2026-10-14): Traefik instead of App Routing's istiod and no VPA add-on
+  (aks-terraform tfvars). Everything on the system pool shares ~5.8 GiB allocatable with ~2 GiB to spare: keep new
+  platform requests small.
