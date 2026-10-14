@@ -50,8 +50,8 @@ and `tenants/`). Specific to it:
   it detects AKS from live node labels (`lookup`), so an offline `helm template` does not catch it.
 - **Every namespace carries `platform/team`, `platform/cost-center` and annotation `platform/contact`**
   (Azure Policy `namespace-ownership`); the platform's own are `platform`.
-- **Namespace access** (`infrastructure/namespace-access`): one RoleBinding template (`platform-${role}`,
+- **Namespace access** (`infrastructure/namespace-access/{view,edit,admin}`, one `base`): a RoleBinding template (`platform-${role}`,
   ClusterRole `${role}` = view / edit / admin, subject the Entra ID group `${group_object_id}`). No cluster
-  pulls it in: aks-terraform adds one Kustomization to the cluster's `platform` Flux configuration per
-  `managed_namespaces.<ns>.groups.<role>` (`platform-<ns>-<role>`) with the three variables.
+  pulls it in: aks-terraform gives each namespace with groups a Flux configuration `<ns>-access`, one Kustomization per
+  `managed_namespaces.<ns>.groups.<role>` on that role's directory (Azure refuses two Kustomizations of one configuration on one path).
 - `clusters/dev-stateless-az2` stays even while that cluster is destroyed.
