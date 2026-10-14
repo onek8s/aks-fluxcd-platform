@@ -41,7 +41,7 @@ metadata:
     platform/contact: https://github.com/onek8s/aks-fluxcd-platform/issues
 ---
 # The namespaces' default service accounts hand no token to a pod that names none (CIS AKS
-# Benchmark 4.1.5): the gateway pods run as their own account (App Routing's), the zone's External
+# Benchmark 4.1.5): the gateway pods run as their own account (Traefik's or App Routing's), the zone's External
 # Secrets Operator as the chart's.
 apiVersion: v1
 kind: ServiceAccount

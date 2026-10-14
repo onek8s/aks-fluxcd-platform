@@ -7,15 +7,17 @@
 #   ${zone_internal}   "true" for an internal zone: its gateway is behind an internal load balancer
 #   ${zone_domain}     int-fi.dev.onek8s.lol - the zone's names, and its wildcard certificate's
 #   ${gateway_client_id}  the identity `<zone>-gateway` reads its certificate in the platform vault as
+#   ${gateway_class_name} the Gateway's class: traefik-<zone> or approuting-istio (aks-terraform)
 #
 # and the cluster's own from cluster-settings.yaml (key_vault_url, azure_tenant_id, quote).
 #
 # The zone's two platform namespaces run on the system pool, not on the zone's nodes, so that a zone
 # without applications has no nodes (its NodePools, infrastructure/node-pools, scale to zero):
 #
-#   <zone>-gateway   The zone's Gateway `<zone>` - class approuting-istio, App Routing's Envoy
-#                    pods and load balancer, one HTTPS listener for *.<zone domain>, which only the
-#                    zone's application namespaces may attach routes to - and its certificate.
+#   <zone>-gateway   The zone's Gateway `<zone>` - class traefik-<zone> (Traefik, which aks-terraform
+#                    deploys) or approuting-istio (App Routing's Envoy pods and load balancer), one
+#                    HTTPS listener for *.<zone domain>, which only the zone's application namespaces
+#                    may attach routes to - and its certificate.
 #   <zone>-secrets   External Secrets Operator for the zone: controllerClass <zone>, so it syncs the
 #                    zone's stores only.
 #

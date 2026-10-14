@@ -46,6 +46,9 @@ data:
   image_signing_certificate_name: "${image_signing_certificate_name}"
   image_signing_subject: "${image_signing_subject}"
   container_registry_login_server: "${container_registry_login_server}"
+  # The platform Gateway's class (infrastructure/platform-gateway): `traefik-platform` or
+  # `approuting-istio`, aks-terraform's gateway_implementation. The zones' are in zones.yaml.
+  gateway_class_name_platform: "${gateway_class_name_platform}"
   # A double quote, for the Kustomizations that substitute from this ConfigMap: kustomize drops the
   # quotes around "${...}", so a value that must stay a string is written ${quote}...${quote}.
   quote: '"'

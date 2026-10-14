@@ -68,12 +68,15 @@ spec:
               - matchPattern: "*.*.*.*.*.*.*.*.internal.cloudapp.net"
               - matchPattern: "*.*.*.*.*.*.*.*.*.internal.cloudapp.net"
 ---
-# The zone's gateway (the Envoy pods App Routing runs for the Gateway): in on its one listener, 443,
+# The zone's gateway (Traefik's pods, or the Envoy pods App Routing runs for the Gateway): in on its
+# one listener, 443,
 # from the load balancer - whose clients keep their own addresses, so they are `world` to Cilium -
 # and from the node (kubelet probes); out to the zone's application namespaces, which its routes lead
 # to, and to App Routing's Istio control plane, istiod in aks-istio-system, for its configuration and
 # certificates (xDS, 15012). Nothing else: no name outside the cluster, no API server, and no Key
-# Vault - its certificate comes from the zone's External Secrets Operator, through istiod.
+# Vault - its certificate comes from the zone's External Secrets Operator, through istiod. Traefik
+# reads its configuration from the API server instead: aks-terraform's gateways/traefik adds that
+# (policies add up).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

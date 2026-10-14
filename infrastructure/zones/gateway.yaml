@@ -6,13 +6,21 @@
 # external zone, the zone's private one for an internal zone (infrastructure/external-dns picks the
 # Gateways by `platform/exposure`).
 #
-# The class is `approuting-istio`: AKS's App Routing Gateway API implementation (aks-terraform,
-# app_routing_gateway_api_enabled), a sidecar-less Istio control plane - no service mesh. For this
-# Gateway it creates, in this namespace, `${zone}-approuting-istio`: an Envoy Deployment, its
-# `LoadBalancer` Service, an autoscaler and a disruption budget, shaped by the ConfigMap below. It
-# copies the load balancer's address into the Gateway's status.
+# The class, ${gateway_class_name}, is aks-terraform's choice (gateway_implementation), handed over
+# as `gateway_class_name_<zone>` (zones.yaml):
 #
-# Changing a Gateway's class re-creates it rather than failing on the change (Flux `force`).
+#   - `traefik-${zone}`: Traefik Proxy for this one Gateway, deployed by aks-terraform itself (its
+#     gateways/traefik, a Flux configuration `traefik-${zone}`), with its own Cilium policy for the
+#     API server. It ignores the ConfigMap below.
+#   - `approuting-istio`: AKS's App Routing Gateway API implementation, a sidecar-less Istio control
+#     plane - no service mesh. For this Gateway it creates, in this namespace,
+#     `${zone}-approuting-istio`: an Envoy Deployment, its `LoadBalancer` Service, an autoscaler and
+#     a disruption budget, shaped by the ConfigMap below. Its istiod requests 1 CPU and 4 GiB before
+#     the first Gateway (https://github.com/Azure/AKS/issues/5939), hence the choice.
+#
+# Either copies the load balancer's address into the Gateway's status, listens on 443 and labels its
+# pods `gateway.networking.k8s.io/gateway-name: ${zone}`, which cilium.yaml lets in. Changing a
+# Gateway's class re-creates it rather than failing on the change (Flux `force`).
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -24,7 +32,7 @@ metadata:
   annotations:
     kustomize.toolkit.fluxcd.io/force: enabled
 spec:
-  gatewayClassName: approuting-istio
+  gatewayClassName: ${gateway_class_name}
   infrastructure:
     parametersRef:
       group: ""
@@ -52,8 +60,8 @@ spec:
               - key: platform/role
                 operator: DoesNotExist
 ---
-# What the gateway's Deployment and Service get beyond the add-on's defaults - only fields on its
-# customization allow list (https://learn.microsoft.com/azure/aks/istio-gateway-api#configmap-customizations):
+# With approuting-istio: what the gateway's Deployment and Service get beyond the add-on's
+# defaults - only fields on its customization allow list (https://learn.microsoft.com/azure/aks/istio-gateway-api#configmap-customizations):
 #
 #   - the system pool, next to the platform's own gateway and controllers: a zone without
 #     applications then has no nodes at all - its NodePools scale to zero (infrastructure/node-pools);

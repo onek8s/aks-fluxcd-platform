@@ -16,7 +16,9 @@ and `tenants/`). Specific to it:
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
   substitutions such as `nap_subnet_id_<zone>`, `key_vault_url_<ns>`, `nap_availability_zone`).
 - **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Gateway
-  (class `approuting-istio`, AKS App Routing; options in the ConfigMap `gateway`), ESO
+  (class `${gateway_class_name}` from aks-terraform's `gateway_implementation`: `traefik-<zone>`, Traefik
+  deployed by aks-terraform's own `gateways/traefik` - not from here - or `approuting-istio`, AKS App Routing,
+  options in the ConfigMap `gateway`; istiod's 1 CPU / 4 GiB, Azure/AKS#5939, is why dev runs Traefik), ESO
   (`controllerClass: <zone>`), certificate, Cilium baseline. Their gateway pods and
   ESO run on the **system pool** (`kubernetes.azure.com/mode: system`, toleration
   `CriticalAddonsOnly`) so a zone without applications has no nodes.
@@ -31,7 +33,8 @@ and `tenants/`). Specific to it:
   with the AKS add-on (aks-terraform `image_integrity_enabled`).
 - **Platform namespaces have Cilium policies too** (CIS AKS 4.4.2): `external-dns` (API server, Entra ID,
   ARM), `external-secrets` (API server, Entra ID, Key Vault; webhook 10250 in from the cluster) and
-  `platform-gateway` (443 in, notification-controller 9292 and istiod out), next to the zones'.
+  `platform-gateway` (443 in, notification-controller 9292 and istiod out; Traefik's API server access is
+  aks-terraform's policy `gateway-traefik`), next to the zones'.
   Every namespace the fleet creates, and flux-system, sets its `default` ServiceAccount's
   `automountServiceAccountToken: false` (CIS 4.1.5); `default`, `kube-public` and `kube-node-lease` are labelled
   PSS restricted with a deny-all NetworkPolicy (`infrastructure/configs/kubernetes-namespaces.yaml`, prune disabled).
