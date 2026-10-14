@@ -1,0 +1,8 @@
+# external-dns for the internal zones' private DNS, in an internal cluster only (OneK8s design
+# decision D52): its own Flux Kustomization, `external-dns-internal`, after `external-dns`, which
+# creates the namespace, the Helm repository and the service account this release shares.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - azure-config.yaml
+  - release-int.yaml

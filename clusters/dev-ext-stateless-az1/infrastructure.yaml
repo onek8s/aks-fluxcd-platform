@@ -118,7 +118,8 @@ spec:
       - kind: ConfigMap
         name: cluster-settings
 ---
-# The nodes of the isolation zones - int-fi, int-se, ext-fi, ext-se - as node auto provisioning
+# The nodes of the external isolation zones - ext-fi, ext-se (OneK8s design decision D52: an external
+# cell runs no internal zone) - as node auto provisioning
 # NodePools, on-demand and spot, amd64 and arm64 (infrastructure/node-pools), each in its zone's
 # subnet and this cell's availability zone from cluster-settings.yaml. Needs NAP's CRDs, which AKS
 # installs with node auto provisioning (aks-terraform: node_auto_provisioning_enabled).
@@ -134,7 +135,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: platform
-  path: ./infrastructure/node-pools
+  path: ./infrastructure/node-pools/external
   prune: true
   wait: true
   postBuild:

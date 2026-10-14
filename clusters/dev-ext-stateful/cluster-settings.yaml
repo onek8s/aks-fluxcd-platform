@@ -1,7 +1,7 @@
 # The values that make this cluster's configuration its own, handed to the Flux Kustomizations
 # through `postBuild.substituteFrom`.
 #
-# aks-dev-stateful: the OneK8s dev environment's stateful cluster, beside the stateless cells. It
+# aks-dev-ext-stateful: the OneK8s dev environment's stateful cluster, beside the stateless cells. It
 # reads the environment's vaults (aks-terraform, shared/envs/dev.tfvars), so its namespaces read the
 # same secrets as the same identities. Defined, not deployed for now - see infrastructure.yaml.
 #

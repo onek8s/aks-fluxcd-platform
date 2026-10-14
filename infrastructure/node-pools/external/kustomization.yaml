@@ -1,0 +1,7 @@
+# The external isolation zones' NodePools, for a cluster of the external exposure (OneK8s design
+# decision D52): one file per country's zone. What each holds is described in ../README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ext-fi.yaml
+  - ext-se.yaml
