@@ -9,6 +9,10 @@ and `tenants/`). Specific to it:
 - **No GitHub CI runs here.** Validate locally: `kustomize build` of every changed directory, and
   `python3 scripts/check-egress.py` for egress allow-lists. Flux applies `main` within minutes of a
   merge (webhook receivers); check the result with aks-terraform's Cluster status workflow.
+- **Internal and external never share a cluster** (design D52): `clusters/dev-ext-*` are external - zones
+  ext-fi/ext-se only, `node-pools` on `infrastructure/node-pools/external`, no `external-dns/internal`. An internal
+  cluster would take `node-pools/internal`, the int zones and the `external-dns-internal` Kustomization on
+  `infrastructure/external-dns/internal`. The dev lab runs only `dev-ext-stateless-az1`.
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
   substitutions such as `nap_subnet_id_<zone>`, `key_vault_url_<ns>`, `nap_availability_zone`).
 - **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Gateway
@@ -16,7 +20,7 @@ and `tenants/`). Specific to it:
   (`controllerClass: <zone>`), certificate, Cilium baseline. Their gateway pods and
   ESO run on the **system pool** (`kubernetes.azure.com/mode: system`, toleration
   `CriticalAddonsOnly`) so a zone without applications has no nodes.
-- **NodePools** (`infrastructure/node-pools`): per zone an on-demand and a spot NodePool (spot
+- **NodePools** (`infrastructure/node-pools/{internal,external}`): per zone an on-demand and a spot NodePool (spot
   weight 50 + taint `platform/capacity=spot`), amd64 and arm64, scale to zero. Applications choose
   spot by tolerating the taint; NAP falls back to on-demand.
 - **Cilium zone baseline** (`infrastructure/zones/cilium.yaml`): default deny; DNS only for
@@ -54,4 +58,4 @@ and `tenants/`). Specific to it:
   ClusterRole `${role}` = view / edit / admin, subject the Entra ID group `${group_object_id}`). No cluster
   pulls it in: aks-terraform gives each namespace with groups a Flux configuration `<ns>-access`, one Kustomization per
   `managed_namespaces.<ns>.groups.<role>` on that role's directory (Azure refuses two Kustomizations of one configuration on one path).
-- `clusters/dev-stateless-az2` stays even while that cluster is destroyed.
+- `clusters/dev-ext-stateless-az2` stays even while that cluster is destroyed.

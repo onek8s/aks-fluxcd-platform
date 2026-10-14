@@ -7,9 +7,10 @@ Helm, Cilium and the Gateway API; only the few Azure facts in each cluster's `cl
 (vaults, subnets, identities) tie it to a cloud. Terraform installs the AKS Flux extension and a Flux
 configuration named `platform` that points at `clusters/<cluster>`; everything else lives here.
 
-The stateless clusters are the design's **cells**, and every cell runs every **isolation zone** -
-`int-fi`, `int-se` (internal workloads of Finland and Sweden), `ext-fi`, `ext-se` (external ones) -
-as a bulkhead of its own: the zone's own nodes in the zone's own subnet for its applications, its own gateway, its own
+The stateless clusters are the design's **cells**. Internal and external workloads never share a
+cluster or a subscription (design decision D52): an **internal** cell runs the isolation zones
+`int-fi` and `int-se` (internal workloads of Finland and Sweden), an **external** one `ext-fi` and
+`ext-se`, each zone in its cell as a bulkhead of its own: the zone's own nodes in the zone's own subnet for its applications, its own gateway, its own
 External Secrets Operator, its own Key Vault, and Cilium policies that keep its workloads apart
 from every other zone's (design sections 4 to 7, 13 and 16).
 
@@ -17,15 +18,15 @@ from every other zone's (design sections 4 to 7, 13 and 16).
 
 ```
 clusters/
-  dev-stateless-az1/      # aks-dev-stateless-az1, a cell in availability zone 1
+  dev-ext-stateless-az1/      # aks-dev-ext-stateless-az1, a cell in availability zone 1
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
                           # `platform-gateway`, `external-dns`, `flux-webhook`, `node-pools`,
                           # `image-verification` and `observability`
     zones.yaml            # Flux Kustomizations `zone-<zone>` -> infrastructure/zones, one per zone
     tenants.yaml          # Flux Kustomization `tenants` -> tenants
-  dev-stateless-az2/      # aks-dev-stateless-az2, the same in availability zone 2
-  dev-stateful/           # aks-dev-stateful: defined, not deployed - controllers and storage only
+  dev-ext-stateless-az2/      # aks-dev-ext-stateless-az2, the same in availability zone 2
+  dev-ext-stateful/           # aks-dev-ext-stateful: defined, not deployed - controllers and storage only
 infrastructure/
   controllers/            # External Secrets Operator (CRDs, webhook, the platform's controller)
                           # and the Helm repositories
@@ -34,10 +35,10 @@ infrastructure/
                           # External Secrets Operator and its Cilium policies
   platform-gateway/       # the platform's own gateway: Flux's webhook receivers
   external-dns/           # external-dns, publishing the gateways' hostnames in Azure DNS (external)
-                          # and Azure Private DNS (internal)
+    internal/             # ... and in Azure Private DNS (internal clusters only)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
   node-pools/             # the isolation zones' node auto provisioning NodePools and AKSNodeClasses,
-                          # GPU ones included
+    internal/, external/  # GPU ones included - one directory per exposure
   observability/          # Grafana's k8s-monitoring: Alloy, kube-state-metrics and OpenCost, to the
                           # environment's Grafana Cloud stack
   image-verification/     # Ratify's configuration for AKS Image Integrity: the platform's signing
@@ -57,8 +58,9 @@ tenants/
   zones (which also wait for `node-pools`), `platform-gateway`, `flux-webhook` (also after
   `platform-gateway`). `external-dns`, `node-pools` and `image-verification` follow nothing. Nothing waits for a
   zone, so one that does not come up holds back no other.
-- Adding an isolation zone - a new country is two - is a `zone-<zone>` Kustomization in `zones.yaml`,
-  a NodePool file in `infrastructure/node-pools`, and the zone in aks-terraform (`shared/`:
+- Adding an isolation zone - a new country is one per exposure - is a `zone-<zone>` Kustomization in
+  the `zones.yaml` of every cell of its exposure, a NodePool file in `infrastructure/node-pools/<internal|external>`,
+  and the zone in aks-terraform (`shared/`:
   `isolation_zones`, `zone_key_vault_names`; each cell: `isolation_zones`).
 
 The Kustomizations use `sourceRef: { kind: GitRepository, name: platform }` - the GitRepository the
@@ -196,11 +198,11 @@ standard fields for them - nor customizing the access log (Envoy's default, on).
 - A team's route attaches to its zone's Gateway (`namespace: <zone>-gateway`, `name: <zone>`) and
   names its hostnames, below the zone's domain - which aks-terraform gives the team's Flux
   configuration as `${zone_domain}`. A route in another zone's namespace is not accepted.
-- **DNS** (`infrastructure/external-dns`), two releases, each keeping a TXT record beside every
+- **DNS** (`infrastructure/external-dns`, and `internal/` in an internal cluster), two releases, each keeping a TXT record beside every
   record marking it as its own, so neither ever deletes a record it did not create:
   - `external-dns-ext`: the routes of the Gateways labelled `platform/exposure: ext` - the external
     zones' and the platform's - as A records to the gateway's public address, in the public zone.
-  - `external-dns-int`: the routes of `platform/exposure: int` Gateways, as A records to the internal
+  - `external-dns-int` (internal clusters only): the routes of `platform/exposure: int` Gateways, as A records to the internal
     load balancer's address, in the internal zones' Azure Private DNS zones
     (`int-fi.dev.onek8s.lol`, ...; aks-terraform's `shared/`), which resolve inside the cells only.
 
@@ -226,8 +228,9 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | Variable | Set by | |
 | --- | --- | --- |
 | `key_vault_url`, `key_vault_url_<namespace>`, `key_vault_client_id_<namespace>` | aks-terraform | The platform vault, a namespace's vault, and the identity each namespace's `key-vault` service account reads its share as. The zones' gateways' client IDs go straight into `zones.yaml`. |
-| `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id`, `internal_dns_resource_group_name` | aks-terraform | The public zone, the internal zones' resource group, and the identity that writes them. |
+| `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id`, `internal_dns_resource_group_name` | aks-terraform | The public zone, the internal zones' resource group (internal clusters only), and the identity that writes them. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
+| `cluster_exposure` | aks-terraform | `int` or `ext`: the cluster's exposure (design decision D52) - which zones, NodePools and external-dns releases it runs. |
 | `nap_subnet_id_<zone>`, `nap_availability_zone` | aks-terraform | Where node auto provisioning puts each zone's nodes: the zone's own subnet, and the cell's availability zone (`swedencentral-1`). |
 | `flux_webhook_hostname` | this repository | The platform gateway's hostname, this cluster's own, below `onek8s.lol`. |
 
@@ -320,10 +323,10 @@ spec:
 
 ## Stateless clusters
 
-aks-dev-stateless-az1 and aks-dev-stateless-az2 have no persistent storage at all. AKS runs none of its CSI drivers there - Azure
+aks-dev-ext-stateless-az1 and aks-dev-ext-stateless-az2 have no persistent storage at all. AKS runs none of its CSI drivers there - Azure
 Disk, Azure Files, Azure Blob - nor the snapshot controller (aks-terraform,
 `persistent_storage_enabled = false`), so the cluster has no StorageClass of AKS's and a claim has
-nothing to be provisioned from. `clusters/dev-stateless-az<N>` leaves out the `storage` Kustomization - no
+nothing to be provisioned from. `clusters/dev-ext-stateless-az<N>` leaves out the `storage` Kustomization - no
 `portable-disk`, no `portable-storage-only` policy - and `portable_disk_resource_group_name`, which
 aks-terraform does not send.
 
@@ -347,7 +350,8 @@ boot-log.
 
 The stateless clusters run [node auto provisioning][nap] (NAP, the AKS-managed Karpenter;
 aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default NodePools. Their
-`node-pools` Kustomization applies `infrastructure/node-pools`: for each isolation zone one
+`node-pools` Kustomization applies `infrastructure/node-pools/<internal|external>`, the directory of
+its exposure: for each isolation zone of it one
 `AKSNodeClass` and two `NodePool`s, and a GPU `AKSNodeClass` and `NodePool`, as in the design's
 [node pools](https://onek8s.github.io/docs/04-node-pools.html):
 
