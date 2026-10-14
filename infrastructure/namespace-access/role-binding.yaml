@@ -1,0 +1,18 @@
+# The group's members get Kubernetes' built-in ClusterRole of that name - view, edit or admin - in
+# the namespace and nowhere else. AKS puts the Entra ID group object IDs of the caller into its
+# Kubernetes groups, so the subject is the group's object ID.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-${role}
+  namespace: ${namespace}
+  labels:
+    platform/namespace-access: ${role}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ${role}
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: ${group_object_id}
