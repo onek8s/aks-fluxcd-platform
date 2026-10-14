@@ -4,10 +4,11 @@
 #
 #   ${flux_webhook_hostname}  Flux's webhook receivers (infrastructure/flux-webhook)
 #
-# Class `approuting-istio`, like the zones' Gateways (infrastructure/zones/gateway.yaml, which this
-# follows but for the load balancer, which is always public): App Routing creates the Envoy
-# Deployment and `LoadBalancer` Service `platform-approuting-istio` here, shaped by the ConfigMap
-# below.
+# Class ${gateway_class_name_platform}, aks-terraform's choice like the zones' Gateways
+# (infrastructure/zones/gateway.yaml, which this follows but for the load balancer, which is always
+# public): `traefik-platform`, Traefik deployed by aks-terraform, or `approuting-istio`, for which App
+# Routing creates the Envoy Deployment and `LoadBalancer` Service `platform-approuting-istio` here,
+# shaped by the ConfigMap below.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -19,7 +20,7 @@ metadata:
   annotations:
     kustomize.toolkit.fluxcd.io/force: enabled
 spec:
-  gatewayClassName: approuting-istio
+  gatewayClassName: ${gateway_class_name_platform}
   infrastructure:
     parametersRef:
       group: ""
@@ -44,8 +45,8 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: flux-system
 ---
-# The system pool, small requests, a public load balancer on 443 only and `externalTrafficPolicy:
-# Local` - see infrastructure/zones/gateway.yaml.
+# With approuting-istio: the system pool, small requests, a public load balancer on 443 only and
+# `externalTrafficPolicy: Local` - see infrastructure/zones/gateway.yaml.
 apiVersion: v1
 kind: ConfigMap
 metadata:

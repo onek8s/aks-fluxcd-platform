@@ -1,6 +1,6 @@
 # The platform's own entry point, apart from every isolation zone's: Flux's webhook receivers
-# (infrastructure/flux-webhook), on the internet. One Gateway, `platform`, of App Routing's class
-# `approuting-istio` - its Envoy pods on the system pool - which only the platform's namespaces may
+# (infrastructure/flux-webhook), on the internet. One Gateway, `platform` - its class aks-terraform's
+# choice, Traefik or App Routing, its pods on the system pool - which only the platform's namespaces may
 # attach routes to; its certificate is `platform-gateway--wildcard` (*.onek8s.lol) from the platform
 # vault, synced by the platform's External Secrets Operator.
 apiVersion: kustomize.config.k8s.io/v1beta1
