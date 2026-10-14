@@ -1,9 +1,0 @@
-# One Entra ID group's role in one managed namespace: aks-terraform's managed_namespaces[*].groups
-# (view, edit, admin). Not pulled in by any cluster's Kustomizations: aks-terraform makes one Flux
-# Kustomization of the cluster's `platform` configuration per namespace and role that names a group,
-# `platform-<namespace>-<role>`, that applies this directory with ${namespace}, ${role} and
-# ${group_object_id} filled in. Removing the group removes the Kustomization, and Flux the binding.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - role-binding.yaml

@@ -1,0 +1,10 @@
+# One Entra ID group's built-in role in one managed namespace (aks-terraform
+# managed_namespaces[*].groups): the RoleBinding every role's directory - view/, edit/, admin/ - is made
+# of. aks-terraform gives each namespace with groups a Flux configuration `<namespace>-access` with one
+# Kustomization per role that applies that role's directory with ${namespace}, ${role} and
+# ${group_object_id} filled in. A directory per role because Azure refuses two Kustomizations of one
+# Flux configuration on the same path. No cluster's Kustomizations pull this in.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - role-binding.yaml
