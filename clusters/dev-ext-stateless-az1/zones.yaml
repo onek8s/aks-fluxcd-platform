@@ -24,6 +24,9 @@ spec:
     kind: GitRepository
     name: platform
   path: ./infrastructure/zones
+  # What only the cell's Gateway API implementation takes (aks-terraform's gateway_implementation).
+  components:
+    - ./gateway-implementations/${gateway_implementation}
   prune: true
   wait: true
   postBuild:
@@ -55,6 +58,9 @@ spec:
     kind: GitRepository
     name: platform
   path: ./infrastructure/zones
+  # What only the cell's Gateway API implementation takes (aks-terraform's gateway_implementation).
+  components:
+    - ./gateway-implementations/${gateway_implementation}
   prune: true
   wait: true
   postBuild:

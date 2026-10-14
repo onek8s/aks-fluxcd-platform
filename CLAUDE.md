@@ -18,7 +18,8 @@ and `tenants/`). Specific to it:
 - **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Gateway
   (class `${gateway_class_name}` from aks-terraform's `gateway_implementation`: `traefik-<zone>`, Traefik
   deployed by aks-terraform's own `gateways/traefik` - not from here - or `approuting-istio`, AKS App Routing,
-  options in the ConfigMap `gateway`; istiod's 1 CPU / 4 GiB, Azure/AKS#5939, is why dev runs Traefik), ESO
+  options in the ConfigMap `gateway` - only through the kustomize component `gateway-implementations/approuting-istio`,
+  since Traefik refuses a `parametersRef`; zones.yaml / infrastructure.yaml pick `./gateway-implementations/${gateway_implementation}`; istiod's 1 CPU / 4 GiB, Azure/AKS#5939, is why dev runs Traefik), ESO
   (`controllerClass: <zone>`), certificate, Cilium baseline. Their gateway pods and
   ESO run on the **system pool** (`kubernetes.azure.com/mode: system`, toleration
   `CriticalAddonsOnly`) so a zone without applications has no nodes.
