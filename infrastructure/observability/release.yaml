@@ -61,8 +61,8 @@ spec:
       alloy-daemon:
         presets: [large, root, host-storage, host-network, host-cgroup, clustered, service-discovery, filesystem-log-reader, daemonset]
         # The large preset's limits, but much smaller requests: the 1 GiB it requests per node does not
-        # fit the two 8 GiB system nodes beside App Routing's istiod and the rest (the user's choice
-        # over a third system node). Under memory pressure it is the first to be evicted.
+        # fit the lab cell's one 8 GiB system node beside the rest (the user's choice over another
+        # system node). Under memory pressure it is the first to be evicted.
         alloy:
           resources:
             requests:
