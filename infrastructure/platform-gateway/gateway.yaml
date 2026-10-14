@@ -8,7 +8,8 @@
 # (infrastructure/zones/gateway.yaml, which this follows but for the load balancer, which is always
 # public): `traefik-platform`, Traefik deployed by aks-terraform, or `approuting-istio`, for which App
 # Routing creates the Envoy Deployment and `LoadBalancer` Service `platform-approuting-istio` here,
-# shaped by the ConfigMap below.
+# shaped by the ConfigMap the component gateway-implementations/approuting-istio adds (infrastructure.yaml
+# names the component after aks-terraform's `gateway_implementation`).
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -21,11 +22,6 @@ metadata:
     kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   gatewayClassName: ${gateway_class_name_platform}
-  infrastructure:
-    parametersRef:
-      group: ""
-      kind: ConfigMap
-      name: gateway
   listeners:
     - name: https-flux-webhook
       protocol: HTTPS
@@ -44,42 +40,3 @@ spec:
           selector:
             matchLabels:
               kubernetes.io/metadata.name: flux-system
----
-# With approuting-istio: the system pool, small requests, a public load balancer on 443 only and
-# `externalTrafficPolicy: Local` - see infrastructure/zones/gateway.yaml.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: gateway
-  namespace: platform-gateway
-data:
-  deployment: |
-    spec:
-      template:
-        spec:
-          nodeSelector:
-            kubernetes.azure.com/mode: system
-          tolerations:
-            - key: CriticalAddonsOnly
-              operator: Exists
-          containers:
-            - name: istio-proxy
-              resources:
-                requests:
-                  cpu: 10m
-                  memory: 64Mi
-                limits:
-                  memory: 512Mi
-  service: |
-    metadata:
-      labels:
-        platform/exposure: ext
-      annotations:
-        service.beta.kubernetes.io/port_80_health-probe_port:
-        service.beta.kubernetes.io/port_80_health-probe_protocol:
-        service.beta.kubernetes.io/port_80_health-probe_request-path:
-        service.beta.kubernetes.io/port_443_health-probe_port:
-        service.beta.kubernetes.io/port_443_health-probe_protocol:
-        service.beta.kubernetes.io/port_443_health-probe_request-path:
-    spec:
-      externalTrafficPolicy: Local

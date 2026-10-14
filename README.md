@@ -177,16 +177,19 @@ Applications are published through the [Kubernetes Gateway API][gatewayapi] on t
 Gateway. aks-terraform turns on the managed Gateway API CRDs (Gateway API v1.5 on Kubernetes 1.36)
 and chooses the implementation that serves the Gateways (`gateway_implementation`); this repository
 only names the class it is told (`gateway_class_name_<gateway>`, zones.yaml and
-cluster-settings.yaml):
+cluster-settings.yaml), and adds what only one implementation takes as the kustomize component
+`gateway-implementations/<gateway_implementation>` of `infrastructure/zones` and
+`infrastructure/platform-gateway`:
 
 - **Traefik** (the dev cells): Traefik Proxy, one Helm release per Gateway with a GatewayClass of
   its own, `traefik-<gateway>`, deployed by aks-terraform from its own `gateways/traefik` - not from
-  here - so the implementation is aks-terraform's to switch. It ignores the ConfigMap `gateway`.
+  here - so the implementation is aks-terraform's to switch. It refuses an `infrastructure.parametersRef`
+  (`Accepted: False`), so its component only annotates the Gateway.
 - **[App Routing's Gateway API implementation][approutinggw]**: a sidecar-less Istio control plane,
   `istiod` in `aks-istio-system`, serving the GatewayClass `approuting-istio` - no service mesh. For
   each Gateway of that class it creates an Envoy Deployment, a `LoadBalancer` Service, an autoscaler
   (at least two replicas) and a disruption budget in the Gateway's namespace, shaped by the ConfigMap
-  the Gateway names in `spec.infrastructure.parametersRef`, within the add-on's customization allow
+  `gateway` its component adds with the Gateway's `spec.infrastructure.parametersRef`, within the add-on's customization allow
   list. AKS upgrades it in place with the cluster. It does not offer rate limits, request size limits
   or `EnvoyFilter`, nor customizing the access log, and its istiod requests 1 CPU and 4 GiB before
   the first Gateway, not customizable ([Azure/AKS#5939][aks5939]) - a second system node per lab

@@ -1,0 +1,22 @@
+# App Routing (`gateway_implementation = "approuting-istio"`): the ConfigMap of the platform gateway's
+# Envoy Deployment and Service, named by the Gateway's `infrastructure.parametersRef`, which Traefik
+# refuses - see infrastructure/zones/gateway-implementations.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - configmap.yaml
+patches:
+  - target:
+      group: gateway.networking.k8s.io
+      kind: Gateway
+    patch: |-
+      - op: add
+        path: /metadata/annotations/platform~1gateway-implementation
+        value: approuting-istio
+      - op: add
+        path: /spec/infrastructure
+        value:
+          parametersRef:
+            group: ""
+            kind: ConfigMap
+            name: gateway

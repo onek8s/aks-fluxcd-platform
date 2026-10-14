@@ -11,15 +11,18 @@
 #
 #   - `traefik-${zone}`: Traefik Proxy for this one Gateway, deployed by aks-terraform itself (its
 #     gateways/traefik, a Flux configuration `traefik-${zone}`), with its own Cilium policy for the
-#     API server. It ignores the ConfigMap below.
+#     API server. It refuses an `infrastructure.parametersRef` (Accepted False).
 #   - `approuting-istio`: AKS's App Routing Gateway API implementation, a sidecar-less Istio control
 #     plane - no service mesh. For this Gateway it creates, in this namespace,
 #     `${zone}-approuting-istio`: an Envoy Deployment, its `LoadBalancer` Service, an autoscaler and
-#     a disruption budget, shaped by the ConfigMap below. Its istiod requests 1 CPU and 4 GiB before
+#     a disruption budget, shaped by the ConfigMap `gateway` that the component
+#     gateway-implementations/approuting-istio adds with the Gateway's `infrastructure.parametersRef`. Its istiod requests 1 CPU and 4 GiB before
 #     the first Gateway (https://github.com/Azure/AKS/issues/5939), hence the choice.
 #
-# Either copies the load balancer's address into the Gateway's status, listens on 443 and labels its
-# pods `gateway.networking.k8s.io/gateway-name: ${zone}`, which cilium.yaml lets in. Changing a
+# What only one implementation takes is a kustomize component, gateway-implementations/<implementation>,
+# which zones.yaml names after aks-terraform's `gateway_implementation`. Either implementation copies
+# the load balancer's address into the Gateway's status, listens on 443 and labels its pods
+# `gateway.networking.k8s.io/gateway-name: ${zone}`, which cilium.yaml lets in. Changing a
 # Gateway's class re-creates it rather than failing on the change (Flux `force`).
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -33,11 +36,6 @@ metadata:
     kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   gatewayClassName: ${gateway_class_name}
-  infrastructure:
-    parametersRef:
-      group: ""
-      kind: ConfigMap
-      name: gateway
   listeners:
     - name: https
       protocol: HTTPS
@@ -59,61 +57,3 @@ spec:
             matchExpressions:
               - key: platform/role
                 operator: DoesNotExist
----
-# With approuting-istio: what the gateway's Deployment and Service get beyond the add-on's
-# defaults - only fields on its customization allow list (https://learn.microsoft.com/azure/aks/istio-gateway-api#configmap-customizations):
-#
-#   - the system pool, next to the platform's own gateway and controllers: a zone without
-#     applications then has no nodes at all - its NodePools scale to zero (infrastructure/node-pools);
-#   - small requests: the add-on keeps at least two replicas (its autoscaler's floor), both on the
-#     one system node of a lab cell;
-#   - the load balancer: an internal zone's is an Azure internal load balancer in the zone's own
-#     subnet snet-${zone}-ilb, reached from the network only; an external zone's is public, and
-#     Azure Traffic Manager points the applications' hostnames at it in every cell (aks-terraform,
-#     shared/: global_hostnames). Only port 443: no plain HTTP anywhere, not even a redirect;
-#   - `externalTrafficPolicy: Local`, which keeps the client's address on the requests the gateway
-#     sees and sends traffic only to nodes a gateway pod runs on. The load balancer then probes the
-#     Service's health check node port, so the probe annotations the add-on sets for the
-#     default policy are taken off (on whichever port it sets them).
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: gateway
-  namespace: ${zone}-gateway
-data:
-  deployment: |
-    spec:
-      template:
-        metadata:
-          labels:
-            platform/zone: ${zone}
-        spec:
-          nodeSelector:
-            kubernetes.azure.com/mode: system
-          tolerations:
-            - key: CriticalAddonsOnly
-              operator: Exists
-          containers:
-            - name: istio-proxy
-              resources:
-                requests:
-                  cpu: 10m
-                  memory: 64Mi
-                limits:
-                  memory: 512Mi
-  service: |
-    metadata:
-      labels:
-        platform/zone: ${zone}
-        platform/exposure: ${zone_exposure}
-      annotations:
-        service.beta.kubernetes.io/azure-load-balancer-internal: "${zone_internal}"
-        service.beta.kubernetes.io/azure-load-balancer-internal-subnet: snet-${zone}-ilb
-        service.beta.kubernetes.io/port_80_health-probe_port:
-        service.beta.kubernetes.io/port_80_health-probe_protocol:
-        service.beta.kubernetes.io/port_80_health-probe_request-path:
-        service.beta.kubernetes.io/port_443_health-probe_port:
-        service.beta.kubernetes.io/port_443_health-probe_protocol:
-        service.beta.kubernetes.io/port_443_health-probe_request-path:
-    spec:
-      externalTrafficPolicy: Local

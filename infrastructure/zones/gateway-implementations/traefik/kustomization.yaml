@@ -1,0 +1,14 @@
+# Traefik (`gateway_implementation = "traefik"`): nothing but an annotation on the zone's Gateway. Traefik
+# itself - its Helm release, GatewayClass traefik-<zone> and Cilium policy for the API server - is
+# aks-terraform's (gateways/traefik).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# A component cannot be empty: it marks the Gateway with the implementation that serves it.
+patches:
+  - target:
+      group: gateway.networking.k8s.io
+      kind: Gateway
+    patch: |-
+      - op: add
+        path: /metadata/annotations/platform~1gateway-implementation
+        value: traefik
