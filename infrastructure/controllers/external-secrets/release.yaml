@@ -25,9 +25,11 @@ spec:
         kind: HelmRepository
         name: external-secrets
       interval: 12h
+  # Retried until it succeeds (-1): behind the hub firewall a first install can time out while a source is
+  # still blocked, and three spent retries would leave the release stalled after the rule opens.
   install:
     remediation:
-      retries: 3
+      retries: -1
   upgrade:
     remediation:
       retries: 3
