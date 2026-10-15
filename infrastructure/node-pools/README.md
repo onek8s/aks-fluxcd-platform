@@ -5,7 +5,9 @@ The nodes of the isolation zones on a stateless cluster, provisioned by node aut
 (node_auto_provisioning_enabled), with none of AKS's own default NodePools, so these are the only
 NodePools the cluster has. A stateless cluster pulls this directory in through its `node-pools`
 Flux Kustomization - see `clusters/dev-ext-stateless-az1/infrastructure.yaml` - on the directory of
-its exposure: internal and external workloads never share a cluster (OneK8s design decision D52),
+its exposure, or per enabled country through a `node-pools-<zone>` Kustomization on the zone's own
+directory (`internal/int-fi`, ...; `clusters/dev-int-stateless-az1/zones.yaml`, where Sweden is
+disabled): internal and external workloads never share a cluster (OneK8s design decision D52),
 so an internal cluster pulls in internal/ (int-fi, int-se) and an external one external/ (ext-fi,
 ext-se). Each country's zone has its own nodes, subnet and vault inside the cluster of its exposure.
 

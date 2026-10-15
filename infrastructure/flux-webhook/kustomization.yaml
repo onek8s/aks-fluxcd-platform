@@ -11,6 +11,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # flux-system's SecretStore on the platform vault, shared with the observability chart
+  - ../flux-system-key-vault
   - key-vault.yaml
   - receiver.yaml
   - route.yaml

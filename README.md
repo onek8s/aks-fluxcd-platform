@@ -18,7 +18,11 @@ from every other zone's (design sections 4 to 7, 13 and 16).
 
 ```
 clusters/
-  dev-ext-stateless-az1/      # aks-dev-ext-stateless-az1, a cell in availability zone 1
+  dev-int-stateless-az1/      # aks-dev-int-stateless-az1, the lab's cell since 2026-10-15: internal,
+                              # Finland only (int-fi), behind the hub's labfw - no platform gateway and
+                              # no webhook; its NodePools per zone in zones.yaml (`node-pools-<zone>`),
+                              # flux-system's vault access as `flux-system-key-vault`, `external-dns-internal`
+  dev-ext-stateless-az1/      # aks-dev-ext-stateless-az1, an external cell in availability zone 1 (not running)
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
                           # `platform-gateway`, `external-dns`, `flux-webhook`, `node-pools`,
@@ -38,7 +42,9 @@ infrastructure/
     internal/             # ... and in Azure Private DNS (internal clusters only)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
   node-pools/             # the isolation zones' node auto provisioning NodePools and AKSNodeClasses,
-    internal/, external/  # GPU ones included - one directory per exposure
+    internal/, external/  # GPU ones included - one directory per exposure, and in it one per zone
+                          # (country), so a cluster can pull in only its enabled countries
+  flux-system-key-vault/  # flux-system's SecretStore on the platform vault (webhook token, Grafana Cloud)
   observability/          # Grafana's k8s-monitoring: Alloy, kube-state-metrics and OpenCost, to the
                           # environment's Grafana Cloud stack
   image-verification/     # Ratify's configuration for AKS Image Integrity: the platform's signing
@@ -241,7 +247,7 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id`, `internal_dns_resource_group_name` | aks-terraform | The public zone, the internal zones' resource group (internal clusters only), and the identity that writes them. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
 | `cluster_exposure` | aks-terraform | `int` or `ext`: the cluster's exposure (design decision D52) - which zones, NodePools and external-dns releases it runs. |
-| `nap_subnet_id_<zone>`, `nap_availability_zone` | aks-terraform | Where node auto provisioning puts each zone's nodes: the zone's own subnet, and the cell's availability zone (`swedencentral-1`). |
+| `nap_subnet_id_<zone>`, `nap_availability_zone` | aks-terraform | Where node auto provisioning puts each zone's nodes: the zone's own subnet, and the cell's availability zone (`germanywestcentral-1`). |
 | `flux_webhook_hostname` | this repository | The platform gateway's hostname, this cluster's own, below `onek8s.lol`. |
 
 The ones aks-terraform sets are Azure facts and are never written here: it gives them to the
@@ -362,7 +368,9 @@ boot-log.
 The stateless clusters run [node auto provisioning][nap] (NAP, the AKS-managed Karpenter;
 aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default NodePools. Their
 `node-pools` Kustomization applies `infrastructure/node-pools/<internal|external>`, the directory of
-its exposure: for each isolation zone of it one
+its exposure - or, in a cell that runs only some countries (the internal lab cell: Finland), a
+`node-pools-<zone>` Kustomization per enabled zone in its zones.yaml applies
+`infrastructure/node-pools/<internal|external>/<zone>`: for each isolation zone one
 `AKSNodeClass` and two `NodePool`s, and a GPU `AKSNodeClass` and `NodePool`, as in the design's
 [node pools](https://onek8s.github.io/docs/04-node-pools.html):
 

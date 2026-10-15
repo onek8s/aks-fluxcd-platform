@@ -1,0 +1,9 @@
+# flux-system's share of the platform Key Vault (the secrets named `flux-system--...`): its `key-vault`
+# service account and SecretStore, which the Flux webhook's token (../flux-webhook) and the
+# observability chart's Grafana Cloud credentials (../observability) are read through. A cluster with
+# the webhook gets this with it; one without (an internal cell has no public entry point) pulls this
+# directory in through a Flux Kustomization of its own, `flux-system-key-vault`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - key-vault.yaml
