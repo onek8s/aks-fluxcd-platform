@@ -40,10 +40,11 @@ spec:
       - gateway-httproute
     extraArgs:
       - --gateway-label-filter=platform/exposure=int
-      # Only the routes a cell is to publish (design section 8): an internal app runs in one home cell, and
-      # only that cell publishes its name <app>.<zone domain>; a cell's own names (hello-<cluster>...) carry
-      # the annotation always. The app's Flux configuration sets it from the cell's `dns_publish`.
-      - --annotation-filter=platform/dns-publish=true
+      # Only the routes this cell is to publish (design section 8): an internal app runs in one home cell, and
+      # only that cell publishes its name <app>.<zone domain>. Each route names the publishing cell in
+      # platform/home-cell - its own cluster for a cell's own names (hello-<cluster>...), the app's home cell
+      # (`home_cell`, aks-terraform) for the app's name.
+      - --annotation-filter=platform/home-cell=${cluster_name}
     domainFilters:
       - "${dns_zone_name}"
     policy: sync
