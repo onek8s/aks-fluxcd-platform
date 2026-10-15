@@ -1,0 +1,24 @@
+# What the team namespaces of this cell need to deploy from their own repositories (tenants/int-se-example), set up once the RBAC their
+# routes need is in place - the zones' gateways need not be: a route waits for its gateway. It does
+# not wait for the teams' apps: a team whose deployment fails shows up on its own Kustomization in
+# its own namespace, not on this one.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tenants
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-configs
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./tenants/int-se-example
+  prune: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings

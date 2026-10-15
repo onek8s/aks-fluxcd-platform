@@ -1,0 +1,10 @@
+# The `example` team's application in the int-se zone: onek8s/aks-fluxcd-example (firewall-egress/), applied into
+# the `int-se-example` namespace and nowhere else, in the firewall-egress cell (clusters/dev-int-stateless-az3,
+# design D59). The namespace, its default policies and its Flux configuration are aks-terraform's
+# (managed_namespaces); the zone's Cilium baseline lets the int-se gateway in, and the zone's firewall-egress
+# policy lets everything out to the hub's firewall, which decides (infrastructure/zones/firewall-egress).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - key-vault.yaml
+  - default-service-account.yaml

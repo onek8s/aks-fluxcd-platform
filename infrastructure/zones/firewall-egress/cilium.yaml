@@ -1,0 +1,38 @@
+# Egress of a zone's applications in a cell WITHOUT an overlay (design D59; aks-terraform pod_network = "subnet",
+# network_plugin_mode = "none"): the hub's firewall decides, not Cilium. The pods have addresses of the zone's node
+# subnet, which they keep up to the firewall, so its rules tell the zones apart (their IP groups), its log tells
+# the pods apart, and onek8s/aks-ai-agents' egress agent proposes each application's rules
+# (azure-landing-zone, firewall-applications/) from the flows it denied.
+#
+# Added to the zone's baseline (../cilium.yaml), whose default deny keeps every other destination INSIDE the
+# cluster closed: an application namespace reaches the outside world - every address that is not an endpoint,
+# node or the API server of this cluster - on any port, and resolves any name through CoreDNS, so the flow reaches
+# the firewall instead of stopping at a refused DNS answer. Platform-owned and cluster-wide (the landing zone's
+# fqdn-egress policy refuses a team's own `toEntities`).
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: ${zone}-firewall-egress
+spec:
+  description: "The ${zone} zone's application namespaces: out to the world through the hub firewall, which decides (D59)"
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.cilium.k8s.namespace.labels.platform/zone
+        operator: In
+        values: ["${zone}"]
+      - key: k8s:io.cilium.k8s.namespace.labels.platform/role
+        operator: DoesNotExist
+  egress:
+    - toEntities:
+        - world
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"

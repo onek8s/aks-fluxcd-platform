@@ -15,6 +15,11 @@ and `tenants/`). Specific to it:
   behind labfw in the hub; its twin `dev-int-stateless-az1` is disabled - zone 1 is not available to the subscription): zone int-fi only (Sweden disabled), `node-pools-int-fi` + `zone-int-fi` in zones.yaml,
   `external-dns-internal`, `flux-system-key-vault` (no `platform-gateway`, no `flux-webhook`: a public LB cannot
   answer behind the firewall), tenants `tenants/int-fi-example`.
+- **`clusters/dev-int-stateless-az3` is the firewall-egress cell** (design D59, 2026-10-15): no overlay (Azure CNI node
+  subnet; pods in their zone's subnet of 100.64.0.0/16), Sweden's int-se only, tenants `tenants/int-se-example`. Its zones
+  also get `firewall-egress-<zone>` (`infrastructure/zones/firewall-egress`): a platform CCNP letting the zone's
+  application namespaces out to `world` and resolve any name - labfw decides, by zone and per application
+  (azure-landing-zone `firewall-applications/`, proposed by aks-ai-agents' egress agent). Cilium keeps the in-cluster rules.
 - **Countries can be disabled**: NodePools are one directory per zone (`node-pools/<internal|external>/<zone>`); a
   cell running only some countries lists `node-pools-<zone>` + `zone-<zone>` per enabled country in its zones.yaml.
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`

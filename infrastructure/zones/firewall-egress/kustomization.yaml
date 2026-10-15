@@ -1,0 +1,6 @@
+# A zone's egress through the hub firewall, for a cell without an overlay (design D59): applied per zone by
+# clusters/<cluster>/zones.yaml of such a cell, after the zone itself (`zone-<zone>`), with ${zone}.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cilium.yaml
