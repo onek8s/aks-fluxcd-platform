@@ -18,7 +18,8 @@ from every other zone's (design sections 4 to 7, 13 and 16).
 
 ```
 clusters/
-  dev-int-stateless-az1/      # aks-dev-int-stateless-az1, the lab's cell since 2026-10-15: internal,
+  dev-int-stateless-az2/      # aks-dev-int-stateless-az2, the lab's running cell since 2026-10-15 (its twin
+                              # dev-int-stateless-az1/ is disabled: zone 1 not available): internal,
                               # Finland only (int-fi), behind the hub's labfw - no platform gateway and
                               # no webhook; its NodePools per zone in zones.yaml (`node-pools-<zone>`),
                               # flux-system's vault access as `flux-system-key-vault`, `external-dns-internal`

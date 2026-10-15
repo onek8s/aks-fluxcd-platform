@@ -2,7 +2,8 @@
 # through `postBuild.substituteFrom`.
 #
 # aks-dev-int-stateless-az1: the OneK8s dev environment's internal stateless cell (design section 8)
-# in availability zone 1 of germanywestcentral, the lab's only cell since 2026-10-15. Its network is
+# in availability zone 1 of germanywestcentral - disabled in the lab (aks-terraform shared/: zone 1 is
+# not available to the subscription); its twin clusters/dev-int-stateless-az2 runs. Its network is
 # peered with the landing zone's hub and sends everything else to labfw there (aks-terraform shared/:
 # hub), so it has no public entry point: no platform gateway and no Flux webhook - Flux polls.
 #

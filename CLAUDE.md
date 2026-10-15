@@ -11,8 +11,8 @@ and `tenants/`). Specific to it:
   merge (webhook receivers); check the result with aks-terraform's Cluster status workflow.
 - **Internal and external never share a cluster** (design D52): `clusters/dev-ext-*` are external - zones
   ext-fi/ext-se only, `node-pools` on `infrastructure/node-pools/external`, no `external-dns/internal`.
-  `clusters/dev-int-stateless-az1` is internal and **the lab's only cell since 2026-10-15** (germanywestcentral,
-  behind labfw in the hub): zone int-fi only (Sweden disabled), `node-pools-int-fi` + `zone-int-fi` in zones.yaml,
+  `clusters/dev-int-stateless-az2` is internal and **the lab's running cell since 2026-10-15** (germanywestcentral,
+  behind labfw in the hub; its twin `dev-int-stateless-az1` is disabled - zone 1 is not available to the subscription): zone int-fi only (Sweden disabled), `node-pools-int-fi` + `zone-int-fi` in zones.yaml,
   `external-dns-internal`, `flux-system-key-vault` (no `platform-gateway`, no `flux-webhook`: a public LB cannot
   answer behind the firewall), tenants `tenants/int-fi-example`.
 - **Countries can be disabled**: NodePools are one directory per zone (`node-pools/<internal|external>/<zone>`); a
