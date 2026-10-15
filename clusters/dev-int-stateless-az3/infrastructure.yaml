@@ -173,3 +173,21 @@ spec:
 # No platform gateway and no Flux webhook: behind the hub's labfw a public load balancer cannot answer
 # (its replies would leave by the default route), and an internal cell has no public entry point.
 # The NodePools are per zone, in zones.yaml. No `storage` Kustomization: the cell is stateless.
+---
+# No overlay (design D59): AKS's ip-masq-agent translates nothing, so every pod's flow reaches labfw with the pod's
+# own address (infrastructure/pod-addresses-to-firewall); labfw translates what leaves the landing zone.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: pod-addresses-to-firewall
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/pod-addresses-to-firewall
+  prune: true
+  wait: true
