@@ -40,6 +40,10 @@ spec:
       - gateway-httproute
     extraArgs:
       - --gateway-label-filter=platform/exposure=int
+      # Only the routes a cell is to publish (design section 8): an internal app runs in one home cell, and
+      # only that cell publishes its name <app>.<zone domain>; a cell's own names (hello-<cluster>...) carry
+      # the annotation always. The app's Flux configuration sets it from the cell's `dns_publish`.
+      - --annotation-filter=platform/dns-publish=true
     domainFilters:
       - "${dns_zone_name}"
     policy: sync
