@@ -1,0 +1,11 @@
+# The `example` team's application in the int-fi zone: onek8s/aks-fluxcd-example, applied into the
+# `int-fi-example` namespace and nowhere else, in an internal cell (clusters/dev-int-stateless-az1). The
+# namespace, its default policies and its Flux configuration are aks-terraform's (managed_namespaces);
+# the zone's Cilium baseline lets the int-fi gateway in and nothing out but cluster DNS
+# (infrastructure/zones/cilium.yaml). No webhook Receiver: an internal cell has no public entry point,
+# so the team's Flux configuration polls (every minute).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - key-vault.yaml
+  - default-service-account.yaml

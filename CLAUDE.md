@@ -10,9 +10,13 @@ and `tenants/`). Specific to it:
   `python3 scripts/check-egress.py` for egress allow-lists. Flux applies `main` within minutes of a
   merge (webhook receivers); check the result with aks-terraform's Cluster status workflow.
 - **Internal and external never share a cluster** (design D52): `clusters/dev-ext-*` are external - zones
-  ext-fi/ext-se only, `node-pools` on `infrastructure/node-pools/external`, no `external-dns/internal`. An internal
-  cluster would take `node-pools/internal`, the int zones and the `external-dns-internal` Kustomization on
-  `infrastructure/external-dns/internal`. The dev lab runs only `dev-ext-stateless-az1`.
+  ext-fi/ext-se only, `node-pools` on `infrastructure/node-pools/external`, no `external-dns/internal`.
+  `clusters/dev-int-stateless-az1` is internal and **the lab's only cell since 2026-10-15** (germanywestcentral,
+  behind labfw in the hub): zone int-fi only (Sweden disabled), `node-pools-int-fi` + `zone-int-fi` in zones.yaml,
+  `external-dns-internal`, `flux-system-key-vault` (no `platform-gateway`, no `flux-webhook`: a public LB cannot
+  answer behind the firewall), tenants `tenants/int-fi-example`.
+- **Countries can be disabled**: NodePools are one directory per zone (`node-pools/<internal|external>/<zone>`); a
+  cell running only some countries lists `node-pools-<zone>` + `zone-<zone>` per enabled country in its zones.yaml.
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
   substitutions such as `nap_subnet_id_<zone>`, `key_vault_url_<ns>`, `nap_availability_zone`).
 - **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Gateway
@@ -62,7 +66,7 @@ and `tenants/`). Specific to it:
   ClusterRole `${role}` = view / edit / admin, subject the Entra ID group `${group_object_id}`). No cluster
   pulls it in: aks-terraform gives each namespace with groups a Flux configuration `<ns>-access`, one Kustomization per
   `managed_namespaces.<ns>.groups.<role>` on that role's directory (Azure refuses two Kustomizations of one configuration on one path).
-- `clusters/dev-ext-stateless-az2` stays even while that cluster is destroyed.
+- `clusters/dev-ext-stateless-az1`, `-az2` and `dev-ext-stateful` stay (external cells, none running).
 - **The dev cells run one 8 GiB system node** (2026-10-14): Traefik instead of App Routing's istiod and no VPA add-on
   (aks-terraform tfvars). Everything on the system pool shares ~5.8 GiB allocatable with ~2 GiB to spare: keep new
   platform requests small.

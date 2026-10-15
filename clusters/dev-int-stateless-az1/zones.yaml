@@ -1,0 +1,64 @@
+# The cell's isolation zones (design, "Isolation zone"): per enabled country, its zone's NodePools
+# (infrastructure/node-pools/internal/<zone>) and one Flux Kustomization over infrastructure/zones -
+# the zone's gateway, External Secrets Operator and Cilium policies - with the zone's values. The
+# client IDs of the zones' gateways and their GatewayClasses (Traefik or App Routing, aks-terraform's
+# gateway_implementation) are aks-terraform's, filled in by the `platform` Kustomization that applies
+# this file. Each zone waits for the controllers (the External Secrets CRDs) and its NodePools;
+# nothing waits for a zone, so one that does not come up holds back no other.
+#
+# The cell is internal (OneK8s design decision D52) and the lab runs Finland only: Sweden's int-se is
+# disabled (aks-terraform shared/envs/dev.tfvars, isolation_zones.int-se.enabled = false), so it has
+# no entries here. Enabling a country is its two Kustomizations here, like int-fi's.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: node-pools-int-fi
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/node-pools/internal/int-fi
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: zone-int-fi
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+    - name: node-pools-int-fi
+  interval: 10m
+  retryInterval: 1m
+  # A zone's first node takes a few minutes to be provisioned.
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones
+  # What only the cell's Gateway API implementation takes (aks-terraform's gateway_implementation).
+  components:
+    - ./gateway-implementations/${gateway_implementation}
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: int-fi
+      zone_exposure: int
+      zone_internal: "true"
+      zone_domain: int-fi.dev.onek8s.lol
+      gateway_client_id: "${key_vault_client_id_int_fi_gateway}"
+      gateway_class_name: "${gateway_class_name_int_fi}"
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
