@@ -1,0 +1,16 @@
+# A cell without an overlay (design D59): the pods keep their own addresses up to the hub firewall. AKS's
+# azure-ip-masq-agent translates every flow whose destination is outside the virtual network to the node's address
+# (its reconciled configuration, azure-ip-masq-agent-config-reconciled, names only the network's own ranges), which
+# would hide the pod - and its application - from the firewall's log. This is the agent's optional user
+# configuration, merged with the reconciled one: translate nothing. The hub firewall translates every flow that
+# leaves the landing zone instead (azure-landing-zone, firewall_snat_private_ranges).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: azure-ip-masq-agent-config
+  namespace: kube-system
+data:
+  ip-masq-agent: |-
+    nonMasqueradeCIDRs:
+      - 0.0.0.0/0
+    masqLinkLocal: false

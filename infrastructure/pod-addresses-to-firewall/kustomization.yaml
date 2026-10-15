@@ -1,0 +1,6 @@
+# A cell without an overlay (design D59): the pods' addresses reach the hub firewall untranslated. Applied by the
+# cell's `pod-addresses-to-firewall` Kustomization (clusters/dev-int-stateless-az3/infrastructure.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ip-masq-agent.yaml
