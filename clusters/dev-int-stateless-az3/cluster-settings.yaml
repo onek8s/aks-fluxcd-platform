@@ -1,0 +1,58 @@
+# The values that make this cluster's configuration its own, handed to the Flux Kustomizations
+# through `postBuild.substituteFrom`.
+#
+# aks-dev-int-stateless-az3: the OneK8s dev environment's internal stateless cell (design section 8)
+# in availability zone 3 of germanywestcentral, the lab's FIREWALL-EGRESS cell (design D59, 2026-10-15): no
+# overlay - its pods have addresses of their zone's node subnet in 100.64.0.0/16 and keep them up to labfw in
+# the hub, which decides every flow that leaves the cluster (zones.yaml: firewall-egress-<zone>). It runs
+# Sweden's int-se only. No public entry point: no platform gateway and no Flux webhook - Flux polls.
+#
+# The `${...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives the
+# facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
+# applied by that one. They are not to be written here by hand.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-settings
+  namespace: flux-system
+data:
+  cluster_name: "${cluster_name}"
+  # The cell's exposure, `int` (OneK8s design decision D52): internal and external workloads never
+  # share a cluster; this one runs the internal zones of the enabled countries only (zones.yaml).
+  cluster_exposure: "${cluster_exposure}"
+  azure_tenant_id: "${azure_tenant_id}"
+  # The environment's platform Key Vault - the gateways' certificates, the Grafana Cloud credentials -
+  # and, for each namespace with a share of a vault, the vault and the identity that namespace's
+  # `key-vault` service account reads it as. A namespace reads the secrets named `<namespace>--...`
+  # and no others. The zones' gateways get theirs in zones.yaml.
+  key_vault_url: "${key_vault_url}"
+  key_vault_client_id_flux_system: "${key_vault_client_id_flux_system}"
+  key_vault_client_id_int_se_example: "${key_vault_client_id_int_se_example}"
+  key_vault_url_int_se_example: "${key_vault_url_int_se_example}"
+  # The public zone and the identity external-dns writes as - an internal cell publishes nothing
+  # there - and the resource group of the internal zones' private DNS (int-se.dev.onek8s.lol), which
+  # external-dns-int keeps.
+  dns_zone_name: "${dns_zone_name}"
+  dns_zone_resource_group_name: "${dns_zone_resource_group_name}"
+  dns_zone_subscription_id: "${dns_zone_subscription_id}"
+  dns_identity_client_id: "${dns_identity_client_id}"
+  internal_dns_resource_group_name: "${internal_dns_resource_group_name}"
+  # Where node auto provisioning puts each zone's nodes (infrastructure/node-pools): the zone's own
+  # node subnet, and the cell's availability zone (`germanywestcentral-2`) every zone NodePool requires.
+  nap_subnet_id_int_se: "${nap_subnet_id_int_se}"
+  nap_availability_zone: "${nap_availability_zone}"
+  # Image Integrity (infrastructure/image-verification): the identity Ratify reads the signatures and
+  # the signing certificate as, the certificate in the platform vault and its subject - the only
+  # signer Ratify trusts - and the registry the signatures are in.
+  image_verification_client_id: "${image_verification_client_id}"
+  image_signing_certificate_name: "${image_signing_certificate_name}"
+  image_signing_subject: "${image_signing_subject}"
+  container_registry_login_server: "${container_registry_login_server}"
+  # A double quote, for the Kustomizations that substitute from this ConfigMap: kustomize drops the
+  # quotes around "${...}", so a value that must stay a string is written ${quote}...${quote}.
+  quote: '"'
+
+  # GPU vCPUs each zone's GPU NodePool may run (infrastructure/node-pools, <zone>gpu). 0 in the dev
+  # lab: GPU nodes are too expensive to run here, so none is ever created; the pools and the GPU
+  # policies are still in place and tested by dry runs.
+  gpu_cpu_limit: "0"

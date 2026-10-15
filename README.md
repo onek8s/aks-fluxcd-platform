@@ -23,6 +23,9 @@ clusters/
                               # Finland only (int-fi), behind the hub's labfw - no platform gateway and
                               # no webhook; its NodePools per zone in zones.yaml (`node-pools-<zone>`),
                               # flux-system's vault access as `flux-system-key-vault`, `external-dns-internal`
+  dev-int-stateless-az3/      # aks-dev-int-stateless-az3, the firewall-egress cell (design D59): no overlay,
+                              # pods in 100.64.0.0/16, Sweden only (int-se); `firewall-egress-<zone>` leaves
+                              # the zone's egress outside the cluster to labfw
   dev-ext-stateless-az1/      # aks-dev-ext-stateless-az1, an external cell in availability zone 1 (not running)
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
     infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
