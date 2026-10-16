@@ -25,6 +25,26 @@ spec:
     kind: GitRepository
     name: platform
   path: ./infrastructure/controllers
+  # No ACNS in this cell (design D61: overlay + the hub Firewall only): Cilium has no DNS proxy, so the
+  # policy's DNS-aware rules and its FQDN egress become plain layer-4 rules - DNS to CoreDNS, HTTPS out
+  # to the world - and the hub firewall decides which names (its rules for the cell's system subnet).
+  patches:
+    - target:
+        kind: CiliumNetworkPolicy
+        name: external-secrets
+        namespace: "external-secrets"
+      patch: |-
+        - op: remove
+          path: /spec/egress/1/toPorts/0/rules
+        - op: replace
+          path: /spec/egress/2
+          value:
+            toEntities:
+              - world
+            toPorts:
+              - ports:
+                  - port: "443"
+                    protocol: TCP
   prune: true
   wait: true
 ---
@@ -62,6 +82,26 @@ spec:
     kind: GitRepository
     name: platform
   path: ./infrastructure/external-dns
+  # No ACNS in this cell (design D61: overlay + the hub Firewall only): Cilium has no DNS proxy, so the
+  # policy's DNS-aware rules and its FQDN egress become plain layer-4 rules - DNS to CoreDNS, HTTPS out
+  # to the world - and the hub firewall decides which names (its rules for the cell's system subnet).
+  patches:
+    - target:
+        kind: CiliumNetworkPolicy
+        name: external-dns
+        namespace: "external-dns"
+      patch: |-
+        - op: remove
+          path: /spec/egress/1/toPorts/0/rules
+        - op: replace
+          path: /spec/egress/2
+          value:
+            toEntities:
+              - world
+            toPorts:
+              - ports:
+                  - port: "443"
+                    protocol: TCP
   prune: true
   wait: true
   postBuild:
@@ -164,6 +204,26 @@ spec:
     kind: GitRepository
     name: platform
   path: ./infrastructure/observability
+  # No ACNS in this cell (design D61: overlay + the hub Firewall only): Cilium has no DNS proxy, so the
+  # policy's DNS-aware rules and its FQDN egress become plain layer-4 rules - DNS to CoreDNS, HTTPS out
+  # to the world - and the hub firewall decides which names (its rules for the cell's system subnet).
+  patches:
+    - target:
+        kind: CiliumNetworkPolicy
+        name: observability
+        namespace: "infra-observability"
+      patch: |-
+        - op: remove
+          path: /spec/egress/3/toPorts/0/rules
+        - op: replace
+          path: /spec/egress/4
+          value:
+            toEntities:
+              - world
+            toPorts:
+              - ports:
+                  - port: "443"
+                    protocol: TCP
   prune: true
   wait: true
   postBuild:
