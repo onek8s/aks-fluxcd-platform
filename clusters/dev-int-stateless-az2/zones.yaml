@@ -49,6 +49,38 @@ spec:
   # What only the cell's Gateway API implementation takes (aks-terraform's gateway_implementation).
   components:
     - ./gateway-implementations/${gateway_implementation}
+  # No ACNS in this cell (design D61: overlay + the hub Firewall only): Cilium has no DNS proxy, so the
+  # policy's DNS-aware rules and its FQDN egress become plain layer-4 rules - DNS to CoreDNS, HTTPS out
+  # to the world - and the hub firewall decides which names (its rules for the cell's system subnet).
+  patches:
+    - target:
+        kind: CiliumClusterwideNetworkPolicy
+        name: ".*-application-baseline"
+      patch: |-
+        - op: remove
+          path: /spec/egress/0/toPorts/0/rules
+    - target:
+        kind: CiliumNetworkPolicy
+        name: gateway
+      patch: |-
+        - op: remove
+          path: /spec/egress/2/toPorts/0/rules
+    - target:
+        kind: CiliumNetworkPolicy
+        name: external-secrets
+        namespace: ".*-secrets"
+      patch: |-
+        - op: remove
+          path: /spec/egress/1/toPorts/0/rules
+        - op: replace
+          path: /spec/egress/2
+          value:
+            toEntities:
+              - world
+            toPorts:
+              - ports:
+                  - port: "443"
+                    protocol: TCP
   prune: true
   wait: true
   postBuild:
@@ -62,3 +94,35 @@ spec:
     substituteFrom:
       - kind: ConfigMap
         name: cluster-settings
+---
+# The zone's applications leave the cluster through the hub firewall, which decides (design D61: overlay +
+# the hub Firewall only, no ACNS): a platform policy lets the zone's application namespaces out to the world.
+# With an overlay the firewall sees the zone's node addresses, so its rules are per zone; the egress agent
+# attributes a denial to the application pods on the node. Layer 4 only (no ACNS DNS proxy).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: firewall-egress-int-fi
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: zone-int-fi
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones/firewall-egress
+  patches:
+    - target:
+        kind: CiliumClusterwideNetworkPolicy
+        name: ".*-firewall-egress"
+      patch: |-
+        - op: remove
+          path: /spec/egress/1/toPorts/0/rules
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: int-fi
