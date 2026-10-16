@@ -15,6 +15,12 @@ and `tenants/`). Specific to it:
   behind labfw in the hub; its twin `dev-int-stateless-az1` is disabled - zone 1 is not available to the subscription): zone int-fi only (Sweden disabled), `node-pools-int-fi` + `zone-int-fi` in zones.yaml,
   `external-dns-internal`, `flux-system-key-vault` (no `platform-gateway`, no `flux-webhook`: a public LB cannot
   answer behind the firewall), tenants `tenants/int-fi-example`.
+- **`clusters/dev-int-stateless-az2` is overlay + the hub firewall only, without ACNS** (design D61, 2026-10-16): Cilium has no
+  DNS proxy there, so its Kustomizations patch every Cilium policy to layer 4 (`spec.patches`: the DNS rules removed, the
+  `toFQDNs` egress replaced by HTTPS to `world`) - the hub firewall decides the names; `firewall-egress-int-fi` lets int-fi's
+  apps out. The firewall sees the zone's node addresses (overlay), so its rules are per zone. Validate such patches by
+  building a temporary kustomization with the Kustomization's path as resource and its patches. A new Cilium policy with
+  DNS or FQDN rules needs a patch here too.
 - **`clusters/dev-int-stateless-az3` is the firewall-egress cell** (design D59, 2026-10-15): no overlay (Azure CNI node
   subnet; pods in their zone's subnet of 100.64.0.0/16), Sweden's int-se only, tenants `tenants/int-se-example`. Its zones
   also get `firewall-egress-<zone>` (`infrastructure/zones/firewall-egress`): a platform CCNP letting the zone's
