@@ -1,5 +1,5 @@
 # The int-se zone's Key Vault, read as the `int-se-example` namespace's share of it: the secrets named
-# `int-se-example--...`, and no others (design section 7) - see infrastructure/zones/certificate.yaml
+# `int-se-example--...`, and no others (design section 2.5) - see infrastructure/zones/certificate.yaml
 # for how. The zone's External Secrets Operator (`controller: int-se`) syncs it; the application
 # itself never calls Key Vault, and its pods cannot reach a vault (the hub firewall lets only the system
 # pool reach the vaults; this cell's zones leave their egress to it - design D59). The

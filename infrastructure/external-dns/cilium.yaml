@@ -1,4 +1,4 @@
-# external-dns's Cilium policy (design section 6; CIS AKS Benchmark 4.4.2): out to the API server,
+# external-dns's Cilium policy (design section 2.4; CIS AKS Benchmark 4.4.2): out to the API server,
 # for the routes it publishes, and to Entra ID and Azure Resource Manager, for the DNS zones it writes
 # as its workload identity - nothing else. In: only the node (kubelet probes).
 apiVersion: cilium.io/v2

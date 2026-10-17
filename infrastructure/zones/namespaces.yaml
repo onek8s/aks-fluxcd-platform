@@ -1,5 +1,5 @@
 # The zone's two platform namespaces - reserved application names, like every `<zone>-<app>`
-# (design section 7). `platform/zone` puts them in the zone; `platform/role: platform` keeps them
+# (design section 2.5). `platform/zone` puts them in the zone; `platform/role: platform` keeps them
 # out of the application baseline (cilium.yaml), since their policies are the platform's own.
 # `platform/team`, `platform/cost-center` and the annotation `platform/contact` say who owns them
 # and pays for them, like every namespace (Azure Policy: namespace-ownership).

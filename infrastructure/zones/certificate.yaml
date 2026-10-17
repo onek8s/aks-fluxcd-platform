@@ -1,6 +1,6 @@
 # The zone's wildcard certificate (*.${zone_domain}), from the environment's platform Key Vault, where
 # aks-terraform's Renew Certificate workflow keeps it as `${zone}-gateway--wildcard` - the share of
-# the vault that belongs to this namespace (design section 15). The gateway reads it like an
+# the vault that belongs to this namespace (design section 4.1). The gateway reads it like an
 # application reads its secrets: through the zone's External Secrets Operator (`controller:
 # ${zone}`), as the `key-vault` service account, federated with the identity aks-terraform grants
 # this one certificate - no other zone's, and nothing in a zone vault. The gateway itself never calls

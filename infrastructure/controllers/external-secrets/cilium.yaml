@@ -1,4 +1,4 @@
-# The platform's External Secrets Operator's Cilium policy (design section 6; CIS AKS Benchmark
+# The platform's External Secrets Operator's Cilium policy (design section 2.4; CIS AKS Benchmark
 # 4.4.2), like a zone's (infrastructure/zones/cilium.yaml): out to the API server, to Entra ID for
 # its workload identity tokens and to Key Vault. In: the node (kubelet probes), and the chart's
 # admission webhook, which the API server calls on its port (10250) - through AKS's konnectivity

@@ -1,4 +1,4 @@
-# Grafana's k8s-monitoring chart (design section 21) as Grafana Cloud sets it up for Fleet Management:
+# Grafana's k8s-monitoring chart (design section 6.2) as Grafana Cloud sets it up for Fleet Management:
 # the collectors take their pipelines - what to collect and where to send it - from the stack's Fleet
 # Management (remote configuration), so collection is managed in Grafana Cloud and this release only
 # runs the collectors and the services they read (decision D48). Installed into infra-observability:

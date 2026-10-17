@@ -12,7 +12,7 @@ cluster or a subscription (design decision D52): an **internal** cell runs the i
 `int-fi` and `int-se` (internal workloads of Finland and Sweden), an **external** one `ext-fi` and
 `ext-se`, each zone in its cell as a bulkhead of its own: the zone's own nodes in the zone's own subnet for its applications, its own gateway, its own
 External Secrets Operator, its own Key Vault, and Cilium policies that keep its workloads apart
-from every other zone's (design sections 5 to 8, 15 and 17).
+from every other zone's (design sections 2.3 to 2.6, 4.1 and 5.1).
 
 ## Layout
 
@@ -107,9 +107,9 @@ applications costs no nodes.
 
 | In the zone | What | Design |
 | --- | --- | --- |
-| `<zone>-gateway` | The Gateway `<zone>`, class `traefik-<zone>` or `approuting-istio` (aks-terraform's `gateway_implementation`) - Traefik, or App Routing's Envoy Deployment and load balancer for it shaped by the ConfigMap `gateway` (system pool, small requests, load balancer annotations, `externalTrafficPolicy: Local`): one HTTPS listener for `*.<zone>.dev.onek8s.lol` with the zone's wildcard certificate, open to routes from the zone's application namespaces only. Its load balancer is an internal one in `snet-<zone>-ilb` for an internal zone, a public one for an external zone | section 15 |
-| `<zone>-secrets` | External Secrets Operator for the zone, `controllerClass: <zone>`: it syncs the stores that name `controller: <zone>` - the zone's - and no others. No CRDs, no webhook | section 7 |
-| Cilium | The application baseline of the zone, the gateway's and the External Secrets Operator's policies - see [Network policies](#network-policies) | sections 6, 8, 17 |
+| `<zone>-gateway` | The Gateway `<zone>`, class `traefik-<zone>` or `approuting-istio` (aks-terraform's `gateway_implementation`) - Traefik, or App Routing's Envoy Deployment and load balancer for it shaped by the ConfigMap `gateway` (system pool, small requests, load balancer annotations, `externalTrafficPolicy: Local`): one HTTPS listener for `*.<zone>.dev.onek8s.lol` with the zone's wildcard certificate, open to routes from the zone's application namespaces only. Its load balancer is an internal one in `snet-<zone>-ilb` for an internal zone, a public one for an external zone | section 4.1 |
+| `<zone>-secrets` | External Secrets Operator for the zone, `controllerClass: <zone>`: it syncs the stores that name `controller: <zone>` - the zone's - and no others. No CRDs, no webhook | section 2.5 |
+| Cilium | The application baseline of the zone, the gateway's and the External Secrets Operator's policies - see [Network policies](#network-policies) | sections 2.4, 2.6, 5.1 |
 
 A namespace belongs to a zone by its label `platform/zone: <zone>`; the zone's two platform
 namespaces also carry `platform/role: platform`, which keeps them out of the application baseline and
@@ -119,7 +119,7 @@ namespace of aks-terraform, labelled there.
 ## Network policies
 
 Cilium enforces them - with ACNS's FQDN policies and eBPF host routing (aks-terraform:
-`advanced_networking`) - as the third layer of design section 6, beside the cells' NSGs:
+`advanced_networking`) - as the third layer of design section 2.4, beside the cells' NSGs:
 
 - **The application baseline**, a `CiliumClusterwideNetworkPolicy` per zone,
   `<zone>-application-baseline`, which no team can change. It selects every pod of the zone's
@@ -132,9 +132,9 @@ Cilium enforces them - with ACNS's FQDN policies and eBPF host routing (aks-terr
     (`169.254.169.254`, which has no name to allow).
 - **An application's egress** is its own `CiliumNetworkPolicy` named `egress`, in the team's
   repository: every destination outside the cluster by FQDN with its ports, and the same names in its
-  DNS rule (design section 17). A name it does not list it can neither resolve nor reach. CIDRs,
+  DNS rule (design section 5.1). A name it does not list it can neither resolve nor reach. CIDRs,
   entities and wildcards that open a whole cloud service are not allowed - the CI check below says
-  so before a pull request is merged; Azure Policy is to enforce it at admission (design section 9).
+  so before a pull request is merged; Azure Policy is to enforce it at admission (design section 2.7).
 - **The zone's gateway**: in on 443 from the load balancer (its clients keep their addresses, so
   they are `world` to Cilium) and from the node; out to the zone's application namespaces, istiod
   in `aks-istio-system` (15012, its configuration and certificates, with App Routing) and cluster
@@ -154,7 +154,7 @@ aks-terraform gives every namespace that needs secrets its own share of a Key Va
 reads the secrets named `<namespace>--<name>`, and no others**. The vault enforces that itself, with
 an Azure ABAC condition on the role assignment of each namespace's identity, so nothing in the
 cluster has to be trusted to keep the namespaces apart. There are two kinds of vault (design
-sections 7 and 15):
+sections 2.5 and 4.1):
 
 - **the platform vault** (`key_vault_url`): the gateways' certificates and the Flux webhook token;
 - **a vault per zone** (`key_vault_url_<namespace>` of an application namespace): the secrets of
@@ -232,7 +232,7 @@ cluster-settings.yaml), and adds what only one implementation takes as the kusto
 ### One hostname in every cell
 
 An external application has one name that every cell serves - `hello.ext-fi.dev.onek8s.lol` - behind
-**Azure Traffic Manager** (design section 10): aks-terraform keeps it as a CNAME to a Traffic Manager
+**Azure Traffic Manager** (design section 3.1): aks-terraform keeps it as a CNAME to a Traffic Manager
 profile (`shared/`, `global_hostnames`) whose endpoints are the application's own name in each cell
 (`hello-<cluster>.ext-fi.dev.onek8s.lol`, an A record of that cell's ext-fi gateway), weighted alike,
 with an HTTPS probe of `/healthz` on the global name - so DNS hands out one cell or the other, and
@@ -376,7 +376,7 @@ its exposure - or, in a cell that runs only some countries (the internal lab cel
 `node-pools-<zone>` Kustomization per enabled zone in its zones.yaml applies
 `infrastructure/node-pools/<internal|external>/<zone>`: for each isolation zone one
 `AKSNodeClass` and two `NodePool`s, and a GPU `AKSNodeClass` and `NodePool`, as in the design's
-[node pools](https://onek8s.github.io/docs/05-node-pools.html):
+[node pools](https://onek8s.github.io/docs/2.3-node-pools.html):
 
 | NodePool | Capacity | Architecture | Taints | Weight | Limits (lab) |
 | --- | --- | --- | --- | --- | --- |
@@ -434,7 +434,7 @@ that is not amd64.
 ## Observability and cost
 
 `infrastructure/observability` installs Grafana's `k8s-monitoring` chart into `infra-observability`
-(design section 21) the way Grafana Cloud's Fleet Management sets it up (decision D48):
+(design section 6.2) the way Grafana Cloud's Fleet Management sets it up (decision D48):
 
 - **Alloy** - `alloy-daemon`, a DaemonSet on every node with Grafana's presets (privileged, host network
   and PID, the node's logs, cgroups and storage). It takes its pipelines - what to collect, where to

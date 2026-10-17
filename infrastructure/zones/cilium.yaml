@@ -1,7 +1,7 @@
-# The zone's Cilium policies - the third layer of design section 6, and the egress rule of
-# section 17: what leaves a pod has to be named by FQDN.
+# The zone's Cilium policies - the third layer of design section 2.4, and the egress rule of
+# section 5.1: what leaves a pod has to be named by FQDN.
 #
-# The baseline of every application namespace of the zone (design section 8), cluster-wide so that
+# The baseline of every application namespace of the zone (design section 2.6), cluster-wide so that
 # no team can change it: every namespace labelled `platform/zone: ${zone}` that is not one of the
 # platform's own. It selects every pod there for ingress and egress, so Cilium's default deny holds
 # for everything it does not allow:
@@ -10,7 +10,7 @@
 #     reach each other through the namespace's default policy (aks-terraform's managed namespace,
 #     `AllowSameNamespace`). Nothing from another zone, another namespace, or outside the cluster.
 #   - out: DNS to CoreDNS, for names in the cluster only. An application adds its own
-#     CiliumNetworkPolicy `egress` with the FQDNs it needs and their DNS rules (design section 17);
+#     CiliumNetworkPolicy `egress` with the FQDNs it needs and their DNS rules (design section 5.1);
 #     without one, nothing leaves the namespace - no internet, no Key Vault, no other zone, and no
 #     instance metadata service (169.254.169.254), which has no name to allow.
 #
@@ -126,7 +126,7 @@ spec:
 ---
 # The zone's External Secrets Operator: out to the API server, to Entra ID for its workload
 # identity tokens and to Key Vault - the only namespaces of a zone that may name a vault (design
-# section 7). In: only the node.
+# section 2.5). In: only the node.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
