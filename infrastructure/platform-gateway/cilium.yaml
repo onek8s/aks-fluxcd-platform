@@ -1,4 +1,4 @@
-# The platform gateway's Cilium policy (design section 6; CIS AKS Benchmark 4.4.2), like a zone's
+# The platform gateway's Cilium policy (design section 2.4; CIS AKS Benchmark 4.4.2), like a zone's
 # gateway (infrastructure/zones/cilium.yaml): in on its one listener, 443, from the load balancer -
 # whose clients keep their own addresses, so they are `world` to Cilium - and from the node (kubelet
 # probes); out to Flux's webhook receivers (notification-controller's port 9292 in flux-system, the only

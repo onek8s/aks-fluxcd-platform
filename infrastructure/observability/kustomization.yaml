@@ -1,4 +1,4 @@
-# Observability and cost (OneK8s design section 21): Grafana's k8s-monitoring chart in the platform
+# Observability and cost (OneK8s design section 6.2): Grafana's k8s-monitoring chart in the platform
 # namespace infra-observability, as Grafana Cloud's Fleet Management sets it up - Grafana Alloy on
 # every node, taking its pipelines from the environment's stack (remote configuration), node-exporter,
 # kube-state-metrics, Beyla's Kubernetes cache - and OpenCost, which turns each namespace's requests

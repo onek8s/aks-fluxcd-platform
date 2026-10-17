@@ -1,5 +1,5 @@
 # The ext-fi zone's Key Vault, read as the `ext-fi-example` namespace's share of it: the secrets named
-# `ext-fi-example--...`, and no others (design section 7) - see infrastructure/zones/certificate.yaml
+# `ext-fi-example--...`, and no others (design section 2.5) - see infrastructure/zones/certificate.yaml
 # for how. The zone's External Secrets Operator (`controller: ext-fi`) syncs it; the application
 # itself never calls Key Vault, and its pods cannot reach a vault (the zone's Cilium baseline). The
 # service account's name is part of the federation aks-terraform makes, so it cannot change, and no
