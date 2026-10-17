@@ -1,4 +1,4 @@
-# The zone's one Gateway (design section 13): HTTPS only, for every name of the zone's domain
+# The zone's one Gateway (design section 15): HTTPS only, for every name of the zone's domain
 # (*.${zone_domain}), with the zone's wildcard certificate (certificate.yaml). Only the zone's own
 # application namespaces - `platform/zone: ${zone}`, not a platform namespace - may attach routes,
 # so a route can never reach into another zone's gateway. A route names its hostnames, below the

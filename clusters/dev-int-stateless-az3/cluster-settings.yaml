@@ -1,7 +1,7 @@
 # The values that make this cluster's configuration its own, handed to the Flux Kustomizations
 # through `postBuild.substituteFrom`.
 #
-# aks-dev-int-stateless-az3: the OneK8s dev environment's internal stateless cell (design section 8)
+# aks-dev-int-stateless-az3: the OneK8s dev environment's internal stateless cell (design section 10)
 # in availability zone 3 of germanywestcentral, the lab's FIREWALL-EGRESS cell (design D59, 2026-10-15): no
 # overlay - its pods have addresses of their zone's node subnet in 100.64.0.0/16 and keep them up to labfw in
 # the hub, which decides every flow that leaves the cluster (zones.yaml: firewall-egress-<zone>). It runs

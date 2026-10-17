@@ -1,4 +1,4 @@
-# aks-dev-ext-stateful: defined, not deployed. The stateful cluster of the OneK8s design (sections 8 and
+# aks-dev-ext-stateful: defined, not deployed. The stateful cluster of the OneK8s design (sections 10 and
 # 13) runs no Gateway API implementation and no Flux - its workloads are deployed by a pipeline and
 # publish themselves with internal load balancers - so it runs none of the gateways, external-dns
 # or Flux webhook of the stateless cells; only the platform's controllers and its storage. Its

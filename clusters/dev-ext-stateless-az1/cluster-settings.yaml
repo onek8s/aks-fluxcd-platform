@@ -1,7 +1,7 @@
 # The values that make this cluster's configuration its own, handed to the Flux Kustomizations
 # through `postBuild.substituteFrom`.
 #
-# aks-dev-ext-stateless-az1: one of the OneK8s dev environment's stateless cells (design section 8), with its own
+# aks-dev-ext-stateless-az1: one of the OneK8s dev environment's stateless cells (design section 10), with its own
 # network, isolation zones and gateways. Every cell runs every external application; Azure Traffic
 # Manager hands out one cell or another (aks-terraform, shared/: global_hostnames).
 #
