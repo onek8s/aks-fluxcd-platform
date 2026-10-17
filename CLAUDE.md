@@ -26,6 +26,8 @@ and `tenants/`). Specific to it:
   also get `firewall-egress-<zone>` (`infrastructure/zones/firewall-egress`): a platform CCNP letting the zone's
   application namespaces out to `world` and resolve any name - labfw decides, by zone and per application
   (azure-landing-zone `firewall-applications/`, proposed by aks-ai-agents' egress agent). Cilium keeps the in-cluster rules.
+- `policy/egress-allow-lists.yaml` is also read by aks-ai-agents' traffic flow documentation (design section 23): a
+  zone's names show on every application's page as "zone allow-list - open to every application of the zone".
 - **Countries can be disabled**: NodePools are one directory per zone (`node-pools/<internal|external>/<zone>`); a
   cell running only some countries lists `node-pools-<zone>` + `zone-<zone>` per enabled country in its zones.yaml.
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
