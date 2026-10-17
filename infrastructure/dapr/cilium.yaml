@@ -1,0 +1,31 @@
+# The AKS Dapr extension's trial (design D65; aks-terraform `dapr`, az3 only): a zone application's daprd
+# sidecar reaches Dapr's control plane in dapr-system - its certificate from sentry, its components from the
+# operator, actor placement, the scheduler. Added to the zones' baselines, whose default deny would stop the
+# sidecar at start. Sidecars of one namespace talk to each other already (the namespace's own policies).
+# Not a platform feature: remove this directory and its Kustomization with the extension.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: dapr-sidecars
+spec:
+  description: "Every zone's application namespaces: daprd out to Dapr's control plane in dapr-system (D65 trial)"
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.cilium.k8s.namespace.labels.platform/zone
+        operator: Exists
+      - key: k8s:io.cilium.k8s.namespace.labels.platform/role
+        operator: DoesNotExist
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: dapr-system
+      toPorts:
+        - ports:
+            - port: "50001" # sentry
+              protocol: TCP
+            - port: "6500" # operator
+              protocol: TCP
+            - port: "50005" # placement
+              protocol: TCP
+            - port: "50006" # scheduler
+              protocol: TCP

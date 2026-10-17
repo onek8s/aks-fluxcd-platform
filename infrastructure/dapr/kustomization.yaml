@@ -1,0 +1,5 @@
+# The Dapr trial (design D65): only cells whose aks-terraform tfvars set `dapr` apply it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cilium.yaml

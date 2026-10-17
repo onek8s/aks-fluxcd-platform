@@ -191,3 +191,21 @@ spec:
   path: ./infrastructure/pod-addresses-to-firewall
   prune: true
   wait: true
+---
+# The AKS Dapr extension's trial (design D65; aks-terraform `dapr` in this cell's tfvars): zone applications'
+# sidecars out to Dapr's control plane. Nothing waits for it.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dapr
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/dapr
+  prune: true
+  wait: true
