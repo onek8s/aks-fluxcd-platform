@@ -2,7 +2,7 @@
 # keeps the webhook's certificate - installed once per cluster - and the controller of the
 # platform's own namespaces (`controller: platform` - flux-system, platform-gateway), on the system
 # pool. Every isolation zone runs a controller of its own on its own nodes, for its own namespaces
-# (infrastructure/zones, design section 6); none of them installs CRDs or a webhook.
+# (infrastructure/zones, design section 7); none of them installs CRDs or a webhook.
 #
 # The version follows patch releases on its own; a new minor version is a change to this file.
 apiVersion: helm.toolkit.fluxcd.io/v2

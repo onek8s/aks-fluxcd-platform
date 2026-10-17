@@ -38,5 +38,5 @@ zone. The zones' gateways and External Secrets Operators (infrastructure/zones) 
 pool, so a zone without applications has no nodes, and its NodePools scale back to zero when its
 last application pod is gone (consolidation of the empty node). A team's pods get the zone's node
 selector and toleration - and the spot and GPU tolerations for `platform/capacity: spot` and
-`platform/accelerator: nvidia-gpu` - from the Azure Policy mutations of design section 14
+`platform/accelerator: nvidia-gpu` - from the Azure Policy mutations of design section 9
 (azure-landing-zone stacks/aks-policy).

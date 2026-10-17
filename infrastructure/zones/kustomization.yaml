@@ -1,4 +1,4 @@
-# One isolation zone of a stateless cell - OneK8s design sections 4 to 7, 13 and 16 - applied once
+# One isolation zone of a stateless cell - OneK8s design sections 5 to 8, 15 and 17 - applied once
 # per zone by a Flux Kustomization of its own (clusters/<cluster>/zones.yaml), which fills in the
 # zone's values:
 #
