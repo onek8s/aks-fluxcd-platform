@@ -1,34 +1,15 @@
-# The cell's isolation zones (design, "Isolation zone"): per enabled country, its zone's NodePools
-# (infrastructure/node-pools/internal/<zone>) and one Flux Kustomization over infrastructure/zones -
+# The cell's isolation zones (design, "Isolation zone"): per enabled country one Flux Kustomization over
+# infrastructure/zones -
 # the zone's gateway, External Secrets Operator and Cilium policies - with the zone's values. The
 # client IDs of the zones' gateways and their GatewayClasses (Traefik or App Routing, aks-terraform's
 # gateway_implementation) are aks-terraform's, filled in by the `platform` Kustomization that applies
-# this file. Each zone waits for the controllers (the External Secrets CRDs) and its NodePools;
-# nothing waits for a zone, so one that does not come up holds back no other.
+# this file. Each zone waits for the controllers (the External Secrets CRDs); nothing waits for a zone,
+# so one that does not come up holds back no other. No NodePools: a pod-subnet cell (design D74) has no
+# node auto provisioning, its zones' nodes are classic node pools of aks-terraform (zone_node_pools).
 #
 # The cell is internal (OneK8s design decision D52) and runs Sweden's int-se only (Finland's int-fi runs in
-# az2). It has no overlay (design D59), so each zone also gets `firewall-egress-<zone>`: its applications'
+# az2). It has no overlay (design D59, D74), so each zone also gets `firewall-egress-<zone>`: its applications'
 # egress outside the cluster is left to the hub's firewall (infrastructure/zones/firewall-egress).
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: node-pools-int-se
-  namespace: flux-system
-spec:
-  interval: 10m
-  retryInterval: 1m
-  timeout: 5m
-  sourceRef:
-    kind: GitRepository
-    name: platform
-  path: ./infrastructure/node-pools/internal/int-se
-  prune: true
-  wait: true
-  postBuild:
-    substituteFrom:
-      - kind: ConfigMap
-        name: cluster-settings
----
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -37,7 +18,6 @@ metadata:
 spec:
   dependsOn:
     - name: infra-controllers
-    - name: node-pools-int-se
   interval: 10m
   retryInterval: 1m
   # A zone's first node takes a few minutes to be provisioned.

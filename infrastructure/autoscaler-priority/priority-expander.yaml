@@ -1,0 +1,18 @@
+# A cell whose zones run classic node pools with the cluster autoscaler instead of node auto provisioning - a
+# pod-subnet cell (design D74, section 2.3; aks-terraform `zone_node_pools`, whose autoscaler takes the
+# `priority` expander). The pools are `<zone>`, `<zone>spot`, `<zone>arm`, `<zone>armspot`; their scale sets are
+# `aks-<pool>-<id>-vmss`. A pod that tolerates spot (platform/capacity: spot, Azure Policy adds the tolerations)
+# fits both a spot and an on-demand pool: the spot pools win, as the NAP NodePools' weights 50 and 10 decide in a
+# NAP cell. When Azure has no spot capacity the scale-up fails and the autoscaler moves on to the on-demand pool.
+# A pod that does not tolerate spot fits only the on-demand pools.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-priority-expander
+  namespace: kube-system
+data:
+  priorities: |-
+    10:
+      - .*
+    50:
+      - .*spot.*

@@ -21,8 +21,13 @@ and `tenants/`). Specific to it:
   apps out. The firewall sees the zone's node addresses (overlay), so its rules are per zone. Validate such patches by
   building a temporary kustomization with the Kustomization's path as resource and its patches. A new Cilium policy with
   DNS or FQDN rules needs a patch here too.
-- **`clusters/dev-int-stateless-az3` is the firewall-egress cell** (design D59, 2026-10-15): no overlay (Azure CNI node
-  subnet; pods in their zone's subnet of 100.64.0.0/16), Sweden's int-se only, tenants `tenants/int-se-example`. Its zones
+- **`clusters/dev-int-stateless-az3` is the pod-subnet cell** (design D59, D74; rebuilt 2026-10-18): no overlay (Azure CNI
+  Pod Subnet with dynamic IP allocation; pods in `snet-system-pods` / `snet-<zone>-pods`, /20s of 100.64.0.0/16, nodes and
+  ILBs in /24 slots of 10.100.0.0/16), Sweden's int-se only, tenants `tenants/int-se-example`. **No NAP there** (refused
+  with a pod subnet): no `node-pools-<zone>`, the zone's nodes are aks-terraform's classic pools (`zone_node_pools`:
+  `intse`, `intsespot`, `intsearm`, `intsearmspot`), and `infrastructure/autoscaler-priority` (the cluster autoscaler's
+  `cluster-autoscaler-priority-expander` ConfigMap) puts the spot pools first. No Dapr (the D65 trial is off; the unused
+  `infrastructure/dapr` stays for a later trial). Its zones
   also get `firewall-egress-<zone>` (`infrastructure/zones/firewall-egress`): a platform CCNP letting the zone's
   application namespaces out to `world` and resolve any name - labfw decides, by zone and per application
   (azure-landing-zone `firewall-applications/`, proposed by aks-ai-agents' egress agent). Cilium keeps the in-cluster rules.
