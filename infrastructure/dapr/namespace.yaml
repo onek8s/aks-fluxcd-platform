@@ -1,0 +1,18 @@
+# The AKS Dapr extension's release namespace (aks-terraform dapr.tf, releaseNamespace). The extension's
+# config agent stores its configuration there before Helm installs anything and does not create it
+# ("namespaces \"dapr-system\" not found", 2026-10-18), so the fleet does - with the owner labels every
+# namespace carries (Azure Policy namespace-ownership). Pod Security baseline enforced, restricted
+# audited and warned: the trial measures whether Dapr's control plane meets restricted before it is
+# enforced. dapr-system is a platform namespace in the landing zone's AKS policy.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapr-system
+  labels:
+    platform/team: platform
+    platform/cost-center: platform
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    platform/contact: https://github.com/onek8s/aks-fluxcd-platform/issues
