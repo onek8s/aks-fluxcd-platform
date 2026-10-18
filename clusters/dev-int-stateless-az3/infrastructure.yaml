@@ -172,9 +172,10 @@ spec:
         name: cluster-settings
 # No platform gateway and no Flux webhook: behind the hub's labfw a public load balancer cannot answer
 # (its replies would leave by the default route), and an internal cell has no public entry point.
-# The NodePools are per zone, in zones.yaml. No `storage` Kustomization: the cell is stateless.
+# No NodePools: the zone's nodes are classic node pools of aks-terraform (design D74). No `storage`
+# Kustomization: the cell is stateless.
 ---
-# No overlay (design D59): AKS's ip-masq-agent translates nothing, so every pod's flow reaches labfw with the pod's
+# No overlay (design D59, D74 - Azure CNI Pod Subnet): AKS's ip-masq-agent translates nothing, so every pod's flow reaches labfw with the pod's
 # own address (infrastructure/pod-addresses-to-firewall); labfw translates what leaves the landing zone.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -192,12 +193,13 @@ spec:
   prune: true
   wait: true
 ---
-# The AKS Dapr extension's trial (design D65; aks-terraform `dapr` in this cell's tfvars): zone applications'
-# sidecars out to Dapr's control plane. Nothing waits for it.
+# The zone's classic node pools (design D74: no node auto provisioning with a pod subnet; aks-terraform
+# zone_node_pools): the cluster autoscaler's priority expander takes the spot pools first
+# (infrastructure/autoscaler-priority).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: dapr
+  name: autoscaler-priority
   namespace: flux-system
 spec:
   interval: 10m
@@ -206,6 +208,6 @@ spec:
   sourceRef:
     kind: GitRepository
     name: platform
-  path: ./infrastructure/dapr
+  path: ./infrastructure/autoscaler-priority
   prune: true
   wait: true

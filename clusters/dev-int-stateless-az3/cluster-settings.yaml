@@ -2,8 +2,8 @@
 # through `postBuild.substituteFrom`.
 #
 # aks-dev-int-stateless-az3: the OneK8s dev environment's internal stateless cell (design section 3.1)
-# in availability zone 3 of germanywestcentral, the lab's FIREWALL-EGRESS cell (design D59, 2026-10-15): no
-# overlay - its pods have addresses of their zone's node subnet in 100.64.0.0/16 and keep them up to labfw in
+# in availability zone 3 of germanywestcentral, the lab's POD-SUBNET cell (design D59, D74): no overlay - Azure
+# CNI Pod Subnet, its pods have addresses of their pool's pod subnet in 100.64.0.0/16 and keep them up to labfw in
 # the hub, which decides every flow that leaves the cluster (zones.yaml: firewall-egress-<zone>). It runs
 # Sweden's int-se only. No public entry point: no platform gateway and no Flux webhook - Flux polls.
 #
@@ -37,10 +37,8 @@ data:
   dns_zone_subscription_id: "${dns_zone_subscription_id}"
   dns_identity_client_id: "${dns_identity_client_id}"
   internal_dns_resource_group_name: "${internal_dns_resource_group_name}"
-  # Where node auto provisioning puts each zone's nodes (infrastructure/node-pools): the zone's own
-  # node subnet, and the cell's availability zone (`germanywestcentral-2`) every zone NodePool requires.
-  nap_subnet_id_int_se: "${nap_subnet_id_int_se}"
-  nap_availability_zone: "${nap_availability_zone}"
+  # No node auto provisioning (design D74: refused with a pod subnet): the zone's nodes are classic node pools
+  # of aks-terraform (zone_node_pools), so no nap_subnet_id_<zone> or nap_availability_zone here.
   # Image Integrity (infrastructure/image-verification): the identity Ratify reads the signatures and
   # the signing certificate as, the certificate in the platform vault and its subject - the only
   # signer Ratify trusts - and the registry the signatures are in.
@@ -52,7 +50,3 @@ data:
   # quotes around "${...}", so a value that must stay a string is written ${quote}...${quote}.
   quote: '"'
 
-  # GPU vCPUs each zone's GPU NodePool may run (infrastructure/node-pools, <zone>gpu). 0 in the dev
-  # lab: GPU nodes are too expensive to run here, so none is ever created; the pools and the GPU
-  # policies are still in place and tested by dry runs.
-  gpu_cpu_limit: "0"
