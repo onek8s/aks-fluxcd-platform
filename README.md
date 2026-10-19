@@ -105,8 +105,9 @@ namespace of aks-terraform, labelled there.
 
 ## Network policies
 
-Cilium enforces them - with ACNS's FQDN policies and eBPF host routing (aks-terraform:
-`advanced_networking`) - as the third layer of design section 2.4, beside the cells' NSGs:
+Cilium enforces them at layers 3 and 4 - no ACNS, so no FQDN or DNS rules (design D80) - as the
+third layer of design section 2.4, beside the cells' NSGs. What leaves the cluster the hub firewall
+decides (design section 5.1; azure-landing-zone `firewall-applications/` and the platform allow-lists):
 
 - **The application baseline**, a `CiliumClusterwideNetworkPolicy` per zone,
   `<zone>-application-baseline`, which no team can change. It selects every pod of the zone's
@@ -114,26 +115,16 @@ Cilium enforces them - with ACNS's FQDN policies and eBPF host routing (aks-terr
   - in: from the zone's own gateway pods, and from the node (probes) - not from another zone, another
     namespace or outside the cluster. The namespace's own pods reach each other through the managed
     namespace's default policy (`AllowSameNamespace`, aks-terraform).
-  - out: DNS to CoreDNS for the cluster's own names (`*.cluster.local`, at every depth) - nothing
-    else. No internet, no Key Vault, no other zone, no Azure instance metadata service
-    (`169.254.169.254`, which has no name to allow).
-- **An application's egress** is its own `CiliumNetworkPolicy` named `egress`, in the team's
-  repository: every destination outside the cluster by FQDN with its ports, and the same names in its
-  DNS rule (design section 5.1). A name it does not list it can neither resolve nor reach. CIDRs,
-  entities and wildcards that open a whole cloud service are not allowed - the CI check below says
-  so before a pull request is merged; Azure Policy is to enforce it at admission (design section 2.7).
+  - out: DNS to CoreDNS (port 53).
+- **The zone's firewall egress**, `<zone>-firewall-egress` (`infrastructure/zones/firewall-egress`):
+  the zone's application namespaces out to `world`, where the hub firewall decides per application.
+  Teams write no egress policy.
 - **The zone's gateway**: in on 443 from the load balancer (its clients keep their addresses, so
   they are `world` to Cilium) and from the node; out to the zone's application namespaces, istiod
   in `aks-istio-system` (15012, its configuration and certificates, with App Routing) and cluster
   DNS. Traefik also reads the API server, through a policy aks-terraform deploys with it.
-- **The zone's External Secrets Operator**: out to the API server, Entra ID
-  (`login.microsoftonline.com`, the workload identity token exchange) and Key Vault
-  (`*.vault.azure.net`) - the only namespaces of a zone that may name a vault.
-
-`policy/egress-allow-lists.yaml` lists, per zone, the FQDNs an application of the zone may name - the
-stand-in for the zone's Azure Firewall allow-list, which the lab's network mode has none of.
-`scripts/check-egress.py` checks an application's `egress` policies against it and against the
-rules above; the team's repository runs it in CI.
+- **The zone's External Secrets Operator** and the platform's own namespaces: out to the API server
+  and on 443 to `world` - Entra ID and Key Vault for ESO - where the firewall decides by name.
 
 ## Key Vault
 
