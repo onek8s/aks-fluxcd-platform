@@ -1,5 +1,5 @@
-# The zone's Cilium policies - the third layer of design section 2.4, and the egress rule of
-# section 5.1: what leaves a pod has to be named by FQDN.
+# The zone's Cilium policies - the third layer of design section 2.4, at layers 3 and 4 only (design
+# D80: no ACNS, so no FQDN or DNS rules). What leaves the cluster the hub firewall decides (section 5.1).
 #
 # The baseline of every application namespace of the zone (design section 2.6), cluster-wide so that
 # no team can change it: every namespace labelled `platform/zone: ${zone}` that is not one of the
@@ -9,19 +9,9 @@
 #   - in: from the zone's own gateway, and from the node (kubelet probes). The namespace's own pods
 #     reach each other through the namespace's default policy (aks-terraform's managed namespace,
 #     `AllowSameNamespace`). Nothing from another zone, another namespace, or outside the cluster.
-#   - out: DNS to CoreDNS, for names in the cluster only. An application adds its own
-#     CiliumNetworkPolicy `egress` with the FQDNs it needs and their DNS rules (design section 5.1);
-#     without one, nothing leaves the namespace - no internet, no Key Vault, no other zone, and no
-#     instance metadata service (169.254.169.254), which has no name to allow.
-#
-# A DNS pattern's `*` is one label, so the cluster's names are allowed at every depth a lookup takes
-# - `<service>.<namespace>.svc.cluster.local`, and the search-domain expansions of an outside name
-# (`login.microsoftonline.com.<namespace>.svc.cluster.local`), which then fail as NXDOMAIN rather
-# than being refused. The same for the node's Azure DNS suffix, the last entry of a pod's search
-# list (`<id>.<region>.internal.cloudapp.net`): a resolver that is refused on a search-domain
-# expansion stops there instead of asking for the name itself - musl's, in every Alpine image - so
-# an application's allowed FQDN would not resolve. Azure DNS answers those names itself, from the
-# VNet's own hosts; they open nothing at L3.
+#   - out: DNS to CoreDNS (port 53). The zone's `firewall-egress` policy lets the namespaces out to
+#     `world`, where the hub firewall decides per application (design section 5.1); nothing else in
+#     the cluster - no other zone, no other namespace, no node.
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
@@ -51,29 +41,13 @@ spec:
         - ports:
             - port: "53"
               protocol: ANY
-          rules:
-            dns:
-              - matchPattern: "*.cluster.local"
-              - matchPattern: "*.*.cluster.local"
-              - matchPattern: "*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.internal.cloudapp.net"
-              - matchPattern: "*.*.*.*.internal.cloudapp.net"
-              - matchPattern: "*.*.*.*.*.internal.cloudapp.net"
-              - matchPattern: "*.*.*.*.*.*.internal.cloudapp.net"
-              - matchPattern: "*.*.*.*.*.*.*.internal.cloudapp.net"
-              - matchPattern: "*.*.*.*.*.*.*.*.internal.cloudapp.net"
-              - matchPattern: "*.*.*.*.*.*.*.*.*.internal.cloudapp.net"
 ---
 # The zone's gateway (Traefik's pods, or the Envoy pods App Routing runs for the Gateway): in on its
 # one listener, 443,
 # from the load balancer - whose clients keep their own addresses, so they are `world` to Cilium -
 # and from the node (kubelet probes); out to the zone's application namespaces, which its routes lead
 # to, and to App Routing's Istio control plane, istiod in aks-istio-system, for its configuration and
-# certificates (xDS, 15012). Nothing else: no name outside the cluster, no API server, and no Key
+# certificates (xDS, 15012). Nothing else: nothing outside the cluster, no API server, and no Key
 # Vault - its certificate comes from the zone's External Secrets Operator, through istiod. Traefik
 # reads its configuration from the API server instead: aks-terraform's gateways/traefik adds that
 # (policies add up).
@@ -117,16 +91,10 @@ spec:
         - ports:
             - port: "53"
               protocol: ANY
-          rules:
-            dns:
-              - matchPattern: "*.cluster.local"
-              - matchPattern: "*.*.cluster.local"
-              - matchPattern: "*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.cluster.local"
 ---
 # The zone's External Secrets Operator: out to the API server, to Entra ID for its workload
 # identity tokens and to Key Vault - the only namespaces of a zone that may name a vault (design
-# section 2.5). In: only the node.
+# section 2.5); out on 443 to `world`, where the hub firewall decides by name. In: only the node.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -149,20 +117,8 @@ spec:
         - ports:
             - port: "53"
               protocol: ANY
-          rules:
-            dns:
-              - matchName: login.microsoftonline.com
-              - matchPattern: "*.vault.azure.net"
-              - matchPattern: "*.cluster.local"
-              - matchPattern: "*.*.cluster.local"
-              - matchPattern: "*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
-    - toFQDNs:
-        - matchName: login.microsoftonline.com
-        - matchPattern: "*.vault.azure.net"
+    - toEntities:
+        - world
       toPorts:
         - ports:
             - port: "443"

@@ -3,6 +3,8 @@
 # its workload identity tokens and to Key Vault. In: the node (kubelet probes), and the chart's
 # admission webhook, which the API server calls on its port (10250) - through AKS's konnectivity
 # agents, so from inside the cluster but not from one fixed endpoint; nothing from outside it.
+# Layers 3 and 4 only (design D80: no ACNS, so no FQDN or DNS rules): out on 443 to `world` - outside
+# the cluster - where the hub firewall decides by name (platform allow-lists in azure-landing-zone).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -31,20 +33,8 @@ spec:
         - ports:
             - port: "53"
               protocol: ANY
-          rules:
-            dns:
-              - matchName: login.microsoftonline.com
-              - matchPattern: "*.vault.azure.net"
-              - matchPattern: "*.cluster.local"
-              - matchPattern: "*.*.cluster.local"
-              - matchPattern: "*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
-    - toFQDNs:
-        - matchName: login.microsoftonline.com
-        - matchPattern: "*.vault.azure.net"
+    - toEntities:
+        - world
       toPorts:
         - ports:
             - port: "443"

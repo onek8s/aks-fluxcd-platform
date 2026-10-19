@@ -1,6 +1,8 @@
 # external-dns's Cilium policy (design section 2.4; CIS AKS Benchmark 4.4.2): out to the API server,
 # for the routes it publishes, and to Entra ID and Azure Resource Manager, for the DNS zones it writes
-# as its workload identity - nothing else. In: only the node (kubelet probes).
+# as its workload identity. In: only the node (kubelet probes).
+# Layers 3 and 4 only (design D80: no ACNS, so no FQDN or DNS rules): out on 443 to `world` - outside
+# the cluster - where the hub firewall decides by name (platform allow-lists in azure-landing-zone).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -23,20 +25,8 @@ spec:
         - ports:
             - port: "53"
               protocol: ANY
-          rules:
-            dns:
-              - matchName: login.microsoftonline.com
-              - matchName: management.azure.com
-              - matchPattern: "*.cluster.local"
-              - matchPattern: "*.*.cluster.local"
-              - matchPattern: "*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.cluster.local"
-              - matchPattern: "*.*.*.*.*.*.*.cluster.local"
-    - toFQDNs:
-        - matchName: login.microsoftonline.com
-        - matchName: management.azure.com
+    - toEntities:
+        - world
       toPorts:
         - ports:
             - port: "443"
