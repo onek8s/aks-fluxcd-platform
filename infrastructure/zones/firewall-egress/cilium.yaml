@@ -21,6 +21,13 @@ spec:
         values: ["${zone}"]
       - key: k8s:io.cilium.k8s.namespace.labels.platform/role
         operator: DoesNotExist
+  # Never the node's own Azure endpoints, which `world` would include: the instance metadata service hands out the
+  # node's identities' tokens to whoever asks (design R5), and the wire server is the VM agent's. Deny wins over the
+  # allow below; the zone's pods resolve names through CoreDNS, never 168.63.129.16 themselves.
+  egressDeny:
+    - toCIDR:
+        - 169.254.169.254/32
+        - 168.63.129.16/32
   egress:
     - toEntities:
         - world
