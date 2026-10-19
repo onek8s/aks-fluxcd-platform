@@ -2,8 +2,7 @@
 # through `postBuild.substituteFrom`.
 #
 # aks-dev-int-stateless-az3: the OneK8s dev environment's internal stateless cell (design section 3.1)
-# in availability zone 3 of germanywestcentral, the lab's POD-SUBNET cell (design D59, D74): no overlay - Azure
-# CNI Pod Subnet, its pods have addresses of their pool's pod subnet in 100.64.0.0/16 and keep them up to labfw in
+# in availability zone 3 of germanywestcentral, the lab's one cell: Azure CNI Pod Subnet, its pods have addresses of their pool's pod subnet in 100.64.0.0/16 and keep them up to labfw in
 # the hub, which decides every flow that leaves the cluster (zones.yaml: firewall-egress-<zone>). It runs
 # Sweden's int-se only. No public entry point: no platform gateway and no Flux webhook - Flux polls.
 #
@@ -37,8 +36,6 @@ data:
   dns_zone_subscription_id: "${dns_zone_subscription_id}"
   dns_identity_client_id: "${dns_identity_client_id}"
   internal_dns_resource_group_name: "${internal_dns_resource_group_name}"
-  # No node auto provisioning (design D74: refused with a pod subnet): the zone's nodes are classic node pools
-  # of aks-terraform (zone_node_pools), so no nap_subnet_id_<zone> or nap_availability_zone here.
   # Image Integrity (infrastructure/image-verification): the identity Ratify reads the signatures and
   # the signing certificate as, the certificate in the platform vault and its subject - the only
   # signer Ratify trusts - and the registry the signatures are in.

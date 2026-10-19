@@ -18,37 +18,28 @@ from every other zone's (design sections 2.3 to 2.6, 4.1 and 5.1).
 
 ```
 clusters/
-  dev-int-stateless-az2/      # aks-dev-int-stateless-az2, the lab's running cell since 2026-10-15 (its twin
-                              # dev-int-stateless-az1/ is disabled: zone 1 not available): internal,
-                              # Finland only (int-fi), behind the hub's labfw - no platform gateway and
-                              # no webhook; its NodePools per zone in zones.yaml (`node-pools-<zone>`),
-                              # flux-system's vault access as `flux-system-key-vault`, `external-dns-internal`
-  dev-int-stateless-az3/      # aks-dev-int-stateless-az3, the pod-subnet cell (design D59, D74): Azure CNI Pod
-                              # Subnet, pods in 100.64.0.0/16, Sweden only (int-se); `firewall-egress-<zone>`
-                              # leaves the zone's egress outside the cluster to labfw; no NodePools (classic
-                              # zone pools of aks-terraform), `autoscaler-priority` puts their spot pools first
-  dev-ext-stateless-az1/      # aks-dev-ext-stateless-az1, an external cell in availability zone 1 (not running)
+  dev-int-stateless-az3/  # aks-dev-int-stateless-az3, the lab's one cell: internal, Sweden only (int-se),
+                          # Azure CNI Pod Subnet behind the hub's labfw - no platform gateway, no webhook
     cluster-settings.yaml # this cluster's values, for the Kustomizations that need them
-    infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`,
-                          # `platform-gateway`, `external-dns`, `flux-webhook`, `node-pools`,
-                          # `image-verification` and `observability`
-    zones.yaml            # Flux Kustomizations `zone-<zone>` -> infrastructure/zones, one per zone
-    tenants.yaml          # Flux Kustomization `tenants` -> tenants
-  dev-ext-stateless-az2/      # aks-dev-ext-stateless-az2, the same in availability zone 2
-  dev-ext-stateful/           # aks-dev-ext-stateful: defined, not deployed - controllers and storage only
+    infrastructure.yaml   # Flux Kustomizations `infra-controllers`, `infra-configs`, `external-dns`,
+                          # `external-dns-internal`, `flux-system-key-vault`, `image-verification`,
+                          # `observability`, `pod-addresses-to-firewall`, `autoscaler-priority`
+    zones.yaml            # per zone `zone-<zone>` -> infrastructure/zones and `firewall-egress-<zone>`
+    tenants.yaml          # Flux Kustomization `tenants` -> tenants/<namespace>
+  dev-int-stateful/       # aks-dev-int-stateful: defined, not deployed - controllers and storage only
 infrastructure/
   controllers/            # External Secrets Operator (CRDs, webhook, the platform's controller)
                           # and the Helm repositories
   configs/                # lets the namespace `admin`/`edit` roles manage HTTPRoutes
   zones/                  # one isolation zone: its gateway (Gateway, its options, certificate), its
-                          # External Secrets Operator and its Cilium policies
-  platform-gateway/       # the platform's own gateway: Flux's webhook receivers
+                          # External Secrets Operator and its Cilium policies; firewall-egress/ lets its
+                          # applications out to the hub firewall, which decides
+  pod-addresses-to-firewall/ # AKS's ip-masq-agent translates nothing: the firewall sees the pods
+  autoscaler-priority/    # the cluster autoscaler's priority expander: the zones' spot pools first
+  platform-gateway/       # the platform's own gateway: Flux's webhook receivers (a cell with a public entry point)
   external-dns/           # external-dns, publishing the gateways' hostnames in Azure DNS (external)
     internal/             # ... and in Azure Private DNS (internal clusters only)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
-  node-pools/             # the isolation zones' node auto provisioning NodePools and AKSNodeClasses,
-    internal/, external/  # GPU ones included - one directory per exposure, and in it one per zone
-                          # (country), so a cluster can pull in only its enabled countries
   flux-system-key-vault/  # flux-system's SecretStore on the platform vault (webhook token, Grafana Cloud)
   observability/          # Grafana's k8s-monitoring: Alloy, kube-state-metrics and OpenCost, to the
                           # environment's Grafana Cloud stack
@@ -56,23 +47,18 @@ infrastructure/
                           # certificate, the registry's signatures, the Notation trust policy
   storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
 tenants/
-  ext-fi-example/         # what the `example` team's application in the ext-fi zone needs in its
-                          # namespace; its repository, onek8s/aks-fluxcd-example, is synced by
-                          # aks-terraform's Flux configuration `ext-fi-example`
+  <namespace>/            # what a team's namespace needs: its `key-vault` service account and SecretStore
 ```
 
 - `clusters/<cluster>/` is the path a cluster's `flux_git_repository.path` names. It holds Flux
   `Kustomization` objects only, each pulling in a shared directory, so adding a cluster is a new
   directory with the same files - and its own `cluster-settings.yaml`.
 - `infrastructure/controllers/` comes first: its Kustomization waits for the controllers, so what
-  needs their CRDs follows it with `dependsOn: [{ name: infra-controllers }]` - `infra-configs`, the
-  zones (which also wait for `node-pools`), `platform-gateway`, `flux-webhook` (also after
-  `platform-gateway`). `external-dns`, `node-pools` and `image-verification` follow nothing. Nothing waits for a
+  needs their CRDs follows it with `dependsOn: [{ name: infra-controllers }]`. Nothing waits for a
   zone, so one that does not come up holds back no other.
-- Adding an isolation zone - a new country is one per exposure - is a `zone-<zone>` Kustomization in
-  the `zones.yaml` of every cell of its exposure, a NodePool file in `infrastructure/node-pools/<internal|external>`,
-  and the zone in aks-terraform (`shared/`:
-  `isolation_zones`, `zone_key_vault_names`; each cell: `isolation_zones`).
+- Adding an isolation zone - a new country is one per exposure - is a `zone-<zone>` and a
+  `firewall-egress-<zone>` Kustomization in the `zones.yaml` of every cell of its exposure, and the zone in
+  aks-terraform (`shared/`: `isolation_zones`; each cell: `isolation_zones` and `zone_node_pools`).
 
 The Kustomizations use `sourceRef: { kind: GitRepository, name: platform }` - the GitRepository the
 AKS Flux extension creates for the Flux configuration Terraform names `platform`.
@@ -173,7 +159,6 @@ that namespace's secrets only - and only the zone's operator reads them. No appl
 | `<zone>-gateway` | `<zone>-gateway--wildcard` in the platform vault - the zone's wildcard certificate | `gateway-tls`, the zone listener's certificate |
 | `platform-gateway` | `platform-gateway--wildcard` in the platform vault - `*.onek8s.lol` | `gateway-tls` |
 | `flux-system` | `flux-system--github-webhook-token` in the platform vault - created by aks-terraform | `github-webhook-token`, the token Flux's GitHub Receiver checks deliveries against |
-| `ext-fi-example` | `ext-fi-example--github-webhook-token` in the ext-fi vault - the same token | `github-webhook-token`, for the team's own Receiver |
 
 The certificates are issued and renewed by aks-terraform's **Renew Certificate** workflow (Let's
 Encrypt, DNS-01 in the public zone), PKCS#12, which the `ExternalSecret`s unpack into
@@ -251,8 +236,7 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | `key_vault_url`, `key_vault_url_<namespace>`, `key_vault_client_id_<namespace>` | aks-terraform | The platform vault, a namespace's vault, and the identity each namespace's `key-vault` service account reads its share as. The zones' gateways' client IDs go straight into `zones.yaml`. |
 | `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id`, `internal_dns_resource_group_name` | aks-terraform | The public zone, the internal zones' resource group (internal clusters only), and the identity that writes them. |
 | `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
-| `cluster_exposure` | aks-terraform | `int` or `ext`: the cluster's exposure (design decision D52) - which zones, NodePools and external-dns releases it runs. |
-| `nap_subnet_id_<zone>`, `nap_availability_zone` | aks-terraform | Where node auto provisioning puts each zone's nodes: the zone's own subnet, and the cell's availability zone (`germanywestcentral-1`). |
+| `cluster_exposure` | aks-terraform | `int` or `ext`: the cluster's exposure (design decision D52) - which zones and external-dns releases it runs. |
 | `flux_webhook_hostname` | this repository | The platform gateway's hostname, this cluster's own, below `onek8s.lol`. |
 
 The ones aks-terraform sets are Azure facts and are never written here: it gives them to the
@@ -262,22 +246,20 @@ them into `cluster-settings.yaml` as it applies it.
 ### Webhook
 
 A push to this repository reaches the cluster at once rather than at the next poll: GitHub calls
-Flux's webhook receiver, which reconciles the `platform` GitRepository (`infrastructure/flux-webhook`).
+Flux's webhook receiver (a cell with a public entry point, aks-terraform `flux_github_webhook`), which reconciles the `platform` GitRepository (`infrastructure/flux-webhook`).
 Its route sends `/hook/` of `flux_webhook_hostname`, on the platform Gateway, to
 notification-controller's `webhook-receiver`; nothing else of the receiver is routed. The `github`
 Receiver checks each delivery's signature against `flux-system--github-webhook-token`.
 
 The webhooks are not set by hand: aks-terraform's **Flux webhooks** workflow runs after every Deploy
-and points a push webhook per cluster at its `flux_webhook_hostname`, on two repositories:
+and points a push webhook per cluster at its `flux_webhook_hostname`:
 
 | Repository | Receiver | Reconciles |
 | --- | --- | --- |
 | onek8s/aks-fluxcd-platform | `flux-system/github` | GitRepository `platform` |
-| onek8s/aks-fluxcd-example | `ext-fi-example/github` (`tenants/ext-fi-example/webhook.yaml`) | GitRepository `ext-fi-example`, the team's |
 
 notification-controller serves every Receiver on the same service, under
-`/hook/sha256(token + name + namespace)`, so the one route above reaches both. Without the webhook,
-Flux still polls the repository.
+`/hook/sha256(token + name + namespace)`. Without the webhook, Flux polls the repository (the lab's cell).
 
 ### Image signatures
 
@@ -345,12 +327,10 @@ spec:
 
 ## Stateless clusters
 
-aks-dev-ext-stateless-az1 and aks-dev-ext-stateless-az2 have no persistent storage at all. AKS runs none of its CSI drivers there - Azure
-Disk, Azure Files, Azure Blob - nor the snapshot controller (aks-terraform,
-`persistent_storage_enabled = false`), so the cluster has no StorageClass of AKS's and a claim has
-nothing to be provisioned from. `clusters/dev-ext-stateless-az<N>` leaves out the `storage` Kustomization - no
-`portable-disk`, no `portable-storage-only` policy - and `portable_disk_resource_group_name`, which
-aks-terraform does not send.
+The cells have no persistent storage at all. AKS runs none of its CSI drivers there - Azure Disk, Azure
+Files, Azure Blob - nor the snapshot controller (aks-terraform, `persistent_storage_enabled = false`), so
+the cluster has no StorageClass of AKS's and a claim has nothing to be provisioned from. A cell's directory
+leaves out the `storage` Kustomization - no `portable-disk`, no `portable-storage-only` policy.
 
 AKS's addon-manager still creates two StorageClasses, `default` and `managed-csi-premium-v2`, with
 `addonmanager.kubernetes.io/mode: EnsureExists` - it creates them again if they are deleted. So Azure
@@ -364,73 +344,15 @@ addon-manager cannot bring them back:
 kubectl delete storageclass default managed-csi-premium-v2
 ```
 
-Only workloads that keep no state run there. The `example` team's Flux configuration syncs
-`stateless/` of its repository on the stateless clusters rather than `apps/`: aks-hello, without
-boot-log.
-
 ### Zone nodes
 
-The stateless clusters run [node auto provisioning][nap] (NAP, the AKS-managed Karpenter;
-aks-terraform, `node_auto_provisioning_enabled`) without any of AKS's default NodePools. Their
-`node-pools` Kustomization applies `infrastructure/node-pools/<internal|external>`, the directory of
-its exposure - or, in a cell that runs only some countries (the internal lab cell: Finland), a
-`node-pools-<zone>` Kustomization per enabled zone in its zones.yaml applies
-`infrastructure/node-pools/<internal|external>/<zone>`: for each isolation zone one
-`AKSNodeClass` and two `NodePool`s, and a GPU `AKSNodeClass` and `NodePool`, as in the design's
-[node pools](https://onek8s.github.io/docs/2.3-node-pools.html):
-
-| NodePool | Capacity | Architecture | Taints | Weight | Limits (lab) |
-| --- | --- | --- | --- | --- | --- |
-| `intfi`, `intse`, `extfi`, `extse` | on-demand | amd64 and arm64 | `platform/zone=<zone>:NoSchedule` | 10 | 16 vCPU, 64 GiB |
-| `intfispot`, `intsespot`, `extfispot`, `extsespot` | spot | amd64 and arm64 | the zone's, and `platform/capacity=spot:NoSchedule` | 50 | 8 vCPU, 32 GiB |
-| `intfigpu`, `intsegpu`, `extfigpu`, `extsegpu` | on-demand, NVIDIA H100 (NC H100 v5) | amd64 | the zone's, and `platform/accelerator=nvidia-gpu:NoSchedule` | 5 | `gpu_cpu_limit` vCPU (cluster-settings.yaml): **0 in the dev lab**, 40 = one `Standard_NC40ads_H100_v5` |
-
-- Every node carries the label `platform/zone=<zone>`, runs Azure Linux with encryption at host, and
-  is in the cell's availability zone and the zone's own subnet (`nap_subnet_id_<zone>`), behind the
-  zone's NSG.
-- The VM sizes come from an allow-list of SKU series with VNet encryption and encryption at host:
-  `Ds_v5`, `Ds_v6`, `Es_v5`, `Es_v6` (amd64) and `Dps_v6`, `Eps_v6` (arm64).
-- A pod that tolerates spot is tried on `<zone>spot` first, for its higher weight, and lands on
-  `<zone>` when Azure has no spot capacity; one that does not stays off spot nodes, by their taint.
-  The team chooses, per application: tolerate spot (and pick an architecture, or leave it open) and
-  NAP uses whatever is available, cheapest first.
-- Empty and under-used nodes are consolidated after 5 minutes, at most 10 % of a NodePool's nodes at
-  a time, and every node is replaced after 30 days at the latest.
-
-A team's pods get the zone's node selector and toleration, and the spot toleration and preference
-for `platform/capacity: spot`, from Azure Policy mutations (azure-landing-zone `stacks/aks-policy`).
-
-### GPU nodes
-
-A pod gets a GPU by asking for it and saying so with a label:
-
-```yaml
-metadata:
-  labels:
-    platform/accelerator: nvidia-gpu
-spec:
-  containers:
-    - name: inference
-      resources:
-        limits:
-          nvidia.com/gpu: 1
-```
-
-The label makes an Azure Policy mutation add the toleration of the zone's GPU NodePool
-(`platform/accelerator=nvidia-gpu:NoSchedule`); the request makes NAP create a GPU node for the pod,
-on `<zone>gpu`, since no other NodePool offers GPUs. Azure Policy refuses the request without the
-label, the label without a request (a GPU node is not for pods that do not use its GPU) and a GPU pod
-that is not amd64.
-
-- Only NC H100 v5 sizes: the GPU VMs that support VNet encryption and encryption at host, as every
-  zone node must (design decision D42). On-demand only.
-- AKS's managed GPU stack (preview, the `AKSNodeClass` tag `EnableManagedGPUExperience`; aks-terraform
-  registers the feature): AKS installs the NVIDIA driver, the device plugin and the DCGM metrics
-  exporter, so there is no GPU operator to run.
-- **The dev lab runs no GPU nodes**: its cells set `gpu_cpu_limit: "0"`, so a GPU pod there stays Pending
-  (the policies are tested by dry runs). An environment that offers GPUs sets the limit per cluster.
-- The node is removed a minute after its last GPU pod. The subscription's quota for the family
-  (`StandardNCadsH100v5Family`) starts at 0 and is raised with aks-terraform's vCPU quota workflow.
+A zone's nodes are aks-terraform's classic node pools (`zone_node_pools`): per zone `<zone>`, `<zone>spot`,
+`<zone>arm` and `<zone>armspot`, from 0 nodes, labelled `platform/zone=<zone>` and tainted
+`platform/zone=<zone>:NoSchedule` (the spot pools also `platform/capacity=spot:NoSchedule`), as in the design's
+[node pools](https://onek8s.github.io/docs/2.3-node-pools.html). The cluster autoscaler's `priority` expander
+(`infrastructure/autoscaler-priority`) tries the spot pools first; when Azure has no spot capacity it moves on to
+the on-demand pool. A team's pods get the zone's node selector and toleration, and the spot toleration and
+preference for `platform/capacity: spot`, from Azure Policy mutations (azure-landing-zone `stacks/aks-policy`).
 
 ## Observability and cost
 
@@ -459,8 +381,6 @@ Every namespace carries the labels `platform/team` and `platform/cost-center` an
 `platform` / `platform`, with this repository's issues as the contact; an application namespace gets
 its own from aks-terraform (`managed_namespaces.<namespace>.owner`).
 
-[nap]: https://learn.microsoft.com/en-us/azure/aks/node-autoprovision
-
 ## Tenants
 
 A team's application is one entry in aks-terraform's `managed_namespaces`, `<zone>-<app>`: the AKS
@@ -472,21 +392,19 @@ configuration** of the team's own, named after the namespace. The extension appl
 team changes its own namespace and nothing else.
 
 `tenants/<namespace>/` here is what the team needs inside the cluster: the `key-vault` service account
-and SecretStore for the namespace's share of its zone's vault, and the `ExternalSecret`s and
-Receiver the platform keeps for it. The zone's Cilium baseline applies by the namespace's label.
-
-Adding a team is therefore an entry in aks-terraform's variables files (the cells' and `shared/`'s)
-and a `tenants/<namespace>/` directory here, listed in `tenants/kustomization.yaml`.
+and SecretStore for the namespace's share of its zone's vault. The zone's Cilium baseline applies by the
+namespace's label. Adding a team is an entry in aks-terraform's variables files (the cell's and `shared/`'s)
+and a `tenants/<namespace>/` directory here, named by the cell's `tenants.yaml`.
 
 | Team | Namespace | Repository |
 | --- | --- | --- |
-| example | `ext-fi-example` | [onek8s/aks-fluxcd-example](https://github.com/onek8s/aks-fluxcd-example) (`stateless/` on the stateless cells) |
+| example | `int-se-example` (az3), `int-fi-example` (the stateful cluster) | [onek8s/aks-fluxcd-example](https://github.com/onek8s/aks-fluxcd-example) |
 
 A team keeps its own secrets as `<namespace>--<name>` in its zone's vault, and syncs them with an
 `ExternalSecret` of its own against the namespace's `key-vault` store:
 
 ```sh
-az keyvault secret set --vault-name kv-onek8s-dev-ext-fi --name ext-fi-example--api-key --value ...
+az keyvault secret set --vault-name kv-onek8s-gwc-int-se --name int-se-example--api-key --value ...
 ```
 
 The images need nothing: they are in the environment's Azure Container Registry (aks-terraform,

@@ -1,4 +1,4 @@
-# A cell without an overlay (design D59): the pods' addresses reach the hub firewall untranslated. Applied by the
+# Every cell (a pod-subnet cell, design section 5.2): the pods' addresses reach the hub firewall untranslated. Applied by the
 # cell's `pod-addresses-to-firewall` Kustomization (clusters/dev-int-stateless-az3/infrastructure.yaml).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

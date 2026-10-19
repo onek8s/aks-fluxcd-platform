@@ -12,7 +12,7 @@
 # and the cluster's own from cluster-settings.yaml (key_vault_url, azure_tenant_id, quote).
 #
 # The zone's two platform namespaces run on the system pool, not on the zone's nodes, so that a zone
-# without applications has no nodes (its NodePools, infrastructure/node-pools, scale to zero):
+# without applications has no nodes (its node pools scale to zero):
 #
 #   <zone>-gateway   The zone's Gateway `<zone>` - class traefik-<zone> (Traefik, which aks-terraform
 #                    deploys) or approuting-istio (App Routing's Envoy pods and load balancer), one

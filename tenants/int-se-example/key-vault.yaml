@@ -2,7 +2,7 @@
 # `int-se-example--...`, and no others (design section 2.5) - see infrastructure/zones/certificate.yaml
 # for how. The zone's External Secrets Operator (`controller: int-se`) syncs it; the application
 # itself never calls Key Vault, and its pods cannot reach a vault (the hub firewall lets only the system
-# pool reach the vaults; this cell's zones leave their egress to it - design D59). The
+# pool reach the vaults; this cell's zones leave their egress to it - design section 5.2). The
 # service account's name is part of the federation aks-terraform makes, so it cannot change, and no
 # pod of the team runs as it.
 #

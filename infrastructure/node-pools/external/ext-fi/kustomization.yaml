@@ -1,7 +1,0 @@
-# The ext-fi isolation zone's NodePools - one directory per country's zone, so that a cluster pulls in only
-# its enabled countries (its own Flux Kustomization, `node-pools-ext-fi`, in clusters/<cluster>/zones.yaml) or
-# the whole exposure (../kustomization.yaml). What it holds is described in ../../README.md.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - node-pools.yaml

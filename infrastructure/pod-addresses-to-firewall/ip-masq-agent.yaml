@@ -1,4 +1,4 @@
-# A cell without an overlay (design D59): the pods keep their own addresses up to the hub firewall. AKS's
+# Every cell (a pod-subnet cell, design section 5.2): the pods keep their own addresses up to the hub firewall. AKS's
 # azure-ip-masq-agent translates every flow whose destination is outside the virtual network to the node's address
 # (its reconciled configuration, azure-ip-masq-agent-config-reconciled, names only the network's own ranges), which
 # would hide the pod - and its application - from the firewall's log. This is the agent's optional user

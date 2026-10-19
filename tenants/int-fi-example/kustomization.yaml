@@ -1,5 +1,5 @@
 # The `example` team's application in the int-fi zone: onek8s/aks-fluxcd-example, applied into the
-# `int-fi-example` namespace and nowhere else, in an internal cell (clusters/dev-int-stateless-az1). The
+# `int-fi-example` namespace and nowhere else, in the stateful cluster (clusters/dev-int-stateful). The
 # namespace, its default policies and its Flux configuration are aks-terraform's (managed_namespaces);
 # the zone's Cilium baseline lets the int-fi gateway in and nothing out but cluster DNS
 # (infrastructure/zones/cilium.yaml). No webhook Receiver: an internal cell has no public entry point,
