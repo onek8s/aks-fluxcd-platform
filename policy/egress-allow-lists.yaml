@@ -2,8 +2,8 @@
 # section 16. In the design this is the zone's Azure Firewall allow-list (platform + security, high
 # risk tier). Since 2026-10-15 the lab's cell is routed through labfw in the hub (network mode
 # `labfw`), which enforces each zone's list from azure-landing-zone's firewall_exposures - keep the two
-# in step; this file is what the pull request check reads. scripts/check-egress.py fails an application's pull request that names
-# anything else, so the gap is found at review time and not as a timeout at run time.
+# in step. aks-ai-agents' traffic flow documentation reads it (design 5.2); applications name no FQDN
+# in their own policies any more (design D80, the landing zone's app-egress rule), so no pull request check does.
 #
 # `names` are exact; `patterns` may start with a `*.` label, never one that opens a whole cloud
 # service. Adding a name for a zone is a change to this file, reviewed by the platform team.

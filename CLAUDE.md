@@ -7,7 +7,7 @@ This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pullin
 and `tenants/`). Specific to it:
 
 - **Validate locally**: `kustomize build` of every changed directory (the CI workflow does the same) and
-  `python3 scripts/check-egress.py` for egress allow-lists. Flux applies `main` within minutes of a merge
+  `python3 scripts/check-egress.py <paths>` for application network policies (the landing zone's `app-egress` rule). Flux applies `main` within minutes of a merge
   (every lab cell polls); check the result with aks-terraform's Cluster status workflow.
 - **Clusters**: `clusters/dev-int-stateless-az3` is the lab's one cell (design v2.0): internal, Sweden's
   int-se only, Azure CNI Pod Subnet behind the hub's labfw - no platform gateway, no Flux webhook;

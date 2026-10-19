@@ -55,9 +55,11 @@ jobs:
             endpointSelector: {}
             egress:
               - toCIDR: ["1.2.3.4/32"]
-              - toFQDNs: [{matchPattern: "*.blob.core.windows.net"}, {matchName: kv.vault.azure.net}]
+              - toFQDNs: [{matchName: api.github.com}]
                 toPorts: [{ports: [{port: "443", protocol: TCP}]}]
+              - toEndpoints: [{matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}}]
+                toPorts: [{ports: [{port: "53", protocol: ANY}], rules: {dns: [{matchPattern: "*"}]}}]
           POLICY
-          if python3 scripts/check-egress.py --zone ext-fi --allow-lists policy/egress-allow-lists.yaml "$RUNNER_TEMP/egress"; then
-            echo "::error::check-egress.py accepted a CIDR, a cloud-wide wildcard and a vault"; exit 1
+          if python3 scripts/check-egress.py "$RUNNER_TEMP/egress"; then
+            echo "::error::check-egress.py accepted a CIDR, an FQDN and a DNS rule"; exit 1
           fi
