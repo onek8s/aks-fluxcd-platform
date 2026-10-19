@@ -1,4 +1,4 @@
-# A pod-subnet cell's zone node pools (design D74): the cluster autoscaler's priority expander, spot first.
+# The zones' classic node pools: the cluster autoscaler's priority expander, spot first (design section 2.3).
 # Applied by the cell's `autoscaler-priority` Kustomization (clusters/dev-int-stateless-az3/infrastructure.yaml).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

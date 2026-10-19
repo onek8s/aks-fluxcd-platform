@@ -172,10 +172,9 @@ spec:
         name: cluster-settings
 # No platform gateway and no Flux webhook: behind the hub's labfw a public load balancer cannot answer
 # (its replies would leave by the default route), and an internal cell has no public entry point.
-# No NodePools: the zone's nodes are classic node pools of aks-terraform (design D74). No `storage`
-# Kustomization: the cell is stateless.
+# No `storage` Kustomization: the cell is stateless.
 ---
-# No overlay (design D59, D74 - Azure CNI Pod Subnet): AKS's ip-masq-agent translates nothing, so every pod's flow reaches labfw with the pod's
+# AKS's ip-masq-agent translates nothing, so every pod's flow reaches labfw with the pod's
 # own address (infrastructure/pod-addresses-to-firewall); labfw translates what leaves the landing zone.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -193,8 +192,7 @@ spec:
   prune: true
   wait: true
 ---
-# The zone's classic node pools (design D74: no node auto provisioning with a pod subnet; aks-terraform
-# zone_node_pools): the cluster autoscaler's priority expander takes the spot pools first
+# The zones' classic node pools (aks-terraform zone_node_pools): the cluster autoscaler's priority expander takes the spot pools first
 # (infrastructure/autoscaler-priority).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

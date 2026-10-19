@@ -4,11 +4,10 @@
 # client IDs of the zones' gateways and their GatewayClasses (Traefik or App Routing, aks-terraform's
 # gateway_implementation) are aks-terraform's, filled in by the `platform` Kustomization that applies
 # this file. Each zone waits for the controllers (the External Secrets CRDs); nothing waits for a zone,
-# so one that does not come up holds back no other. No NodePools: a pod-subnet cell (design D74) has no
-# node auto provisioning, its zones' nodes are classic node pools of aks-terraform (zone_node_pools).
+# so one that does not come up holds back no other. The zones' nodes are classic node pools of aks-terraform
+# (zone_node_pools).
 #
-# The cell is internal (OneK8s design decision D52) and runs Sweden's int-se only (Finland's int-fi runs in
-# az2). It has no overlay (design D59, D74), so each zone also gets `firewall-egress-<zone>`: its applications'
+# The cell is internal (OneK8s design decision D52) and runs Sweden's int-se only. Each zone also gets `firewall-egress-<zone>`: its applications'
 # egress outside the cluster is left to the hub's firewall (infrastructure/zones/firewall-egress).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

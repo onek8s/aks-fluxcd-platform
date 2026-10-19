@@ -15,7 +15,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: platform
-  path: ./tenants
+  path: ./tenants/int-fi-example
   prune: true
   postBuild:
     substituteFrom:

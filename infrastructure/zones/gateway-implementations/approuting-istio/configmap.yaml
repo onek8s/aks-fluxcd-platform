@@ -2,7 +2,7 @@
 # customization allow list (https://learn.microsoft.com/azure/aks/istio-gateway-api#configmap-customizations):
 #
 #   - the system pool, next to the platform's own gateway and controllers: a zone without
-#     applications then has no nodes at all - its NodePools scale to zero (infrastructure/node-pools);
+#     applications then has no nodes at all - its node pools scale to zero;
 #   - small requests: the add-on keeps at least two replicas (its autoscaler's floor), both on the
 #     one system node of a lab cell;
 #   - the load balancer: an internal zone's is an Azure internal load balancer in the zone's own

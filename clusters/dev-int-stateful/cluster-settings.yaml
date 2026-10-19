@@ -1,7 +1,7 @@
 # The values that make this cluster's configuration its own, handed to the Flux Kustomizations
 # through `postBuild.substituteFrom`.
 #
-# aks-dev-ext-stateful: the OneK8s dev environment's stateful cluster, beside the stateless cells. It
+# aks-dev-int-stateful: the OneK8s dev environment's stateful cluster, beside the stateless cells. It
 # reads the environment's vaults (aks-terraform, shared/envs/dev.tfvars), so its namespaces read the
 # same secrets as the same identities. Defined, not deployed for now - see infrastructure.yaml.
 #
@@ -21,8 +21,8 @@ data:
   # and no others.
   key_vault_url: "${key_vault_url}"
   key_vault_client_id_flux_system: "${key_vault_client_id_flux_system}"
-  key_vault_client_id_ext_fi_example: "${key_vault_client_id_ext_fi_example}"
-  key_vault_url_ext_fi_example: "${key_vault_url_ext_fi_example}"
+  key_vault_client_id_int_fi_example: "${key_vault_client_id_int_fi_example}"
+  key_vault_url_int_fi_example: "${key_vault_url_int_fi_example}"
   # The one DNS zone the listener hostnames are published in, the identity that writes it, whether it
   # is public or private, and the external-dns provider for it (azure / azure-private-dns).
   dns_zone_name: "${dns_zone_name}"
