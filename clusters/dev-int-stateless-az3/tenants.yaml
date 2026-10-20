@@ -22,3 +22,24 @@ spec:
     substituteFrom:
       - kind: ConfigMap
         name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tenants-int-fi
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-configs
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./tenants/int-fi-example
+  prune: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings

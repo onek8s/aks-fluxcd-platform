@@ -4,7 +4,7 @@
 # aks-dev-int-stateless-az3: the OneK8s dev environment's internal stateless cell (design section 3.1)
 # in availability zone 3 of germanywestcentral, the lab's one cell: Azure CNI Pod Subnet, its pods have addresses of their pool's pod subnet in 100.64.0.0/16 and keep them up to labfw in
 # the hub, which decides every flow that leaves the cluster (zones.yaml: firewall-egress-<zone>). It runs
-# Sweden's int-se only. No public entry point: no platform gateway and no Flux webhook - Flux polls.
+# Sweden's int-se and Finland's int-fi. No public entry point: no platform gateway and no Flux webhook - Flux polls.
 #
 # The `${...}` ones are filled in by the cluster's Flux configuration, which aks-terraform gives the
 # facts of the Azure side as post-build variables of the `platform` Kustomization - this file is
@@ -26,10 +26,12 @@ data:
   # and no others. The zones' gateways get theirs in zones.yaml.
   key_vault_url: "${key_vault_url}"
   key_vault_client_id_flux_system: "${key_vault_client_id_flux_system}"
+  key_vault_client_id_int_fi_example: "${key_vault_client_id_int_fi_example}"
+  key_vault_url_int_fi_example: "${key_vault_url_int_fi_example}"
   key_vault_client_id_int_se_example: "${key_vault_client_id_int_se_example}"
   key_vault_url_int_se_example: "${key_vault_url_int_se_example}"
   # The public zone and the identity external-dns writes as - an internal cell publishes nothing
-  # there - and the resource group of the internal zones' private DNS (int-se.dev.onek8s.lol), which
+  # there - and the resource group of the internal zones' private DNS (int-fi.dev.onek8s.lol, int-se.dev.onek8s.lol), which
   # external-dns-int keeps.
   dns_zone_name: "${dns_zone_name}"
   dns_zone_resource_group_name: "${dns_zone_resource_group_name}"

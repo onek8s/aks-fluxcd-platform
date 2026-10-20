@@ -7,7 +7,7 @@
 # so one that does not come up holds back no other. The zones' nodes are classic node pools of aks-terraform
 # (zone_node_pools).
 #
-# The cell is internal (OneK8s design decision D52) and runs Sweden's int-se only. Each zone also gets `firewall-egress-<zone>`: its applications'
+# The cell is internal (OneK8s design decision D52) and runs Sweden's int-se and Finland's int-fi. Each zone also gets `firewall-egress-<zone>`: its applications'
 # egress outside the cluster is left to the hub's firewall (infrastructure/zones/firewall-egress).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -62,3 +62,57 @@ spec:
   postBuild:
     substitute:
       zone: int-se
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: zone-int-fi
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+  interval: 10m
+  retryInterval: 1m
+  # A zone's first node takes a few minutes to be provisioned.
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones
+  # What only the cell's Gateway API implementation takes (aks-terraform's gateway_implementation).
+  components:
+    - ./gateway-implementations/${gateway_implementation}
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: int-fi
+      zone_exposure: int
+      zone_internal: "true"
+      zone_domain: int-fi.dev.onek8s.lol
+      gateway_client_id: "${key_vault_client_id_int_fi_gateway}"
+      gateway_class_name: "${gateway_class_name_int_fi}"
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: firewall-egress-int-fi
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: zone-int-fi
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: platform
+  path: ./infrastructure/zones/firewall-egress
+  prune: true
+  wait: true
+  postBuild:
+    substitute:
+      zone: int-fi

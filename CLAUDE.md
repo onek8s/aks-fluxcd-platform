@@ -10,8 +10,8 @@ and `tenants/`). Specific to it:
   `python3 scripts/check-egress.py <paths>` for application network policies (the landing zone's `app-egress` rule). Flux applies `main` within minutes of a merge
   (every lab cell polls); check the result with aks-terraform's Cluster status workflow.
 - **Clusters**: `clusters/dev-int-stateless-az3` is the lab's one cell (design v2.0): internal, Sweden's
-  int-se only, Azure CNI Pod Subnet behind the hub's labfw - no platform gateway, no Flux webhook;
-  tenants `tenants/int-se-example`. `clusters/dev-int-stateful` is defined, never deployed. Internal and
+  int-se and (since 2026-10-20) Finland's int-fi, Azure CNI Pod Subnet behind the hub's labfw - no platform gateway, no Flux webhook;
+  tenants `tenants/int-se-example` and `tenants/int-fi-example`. `clusters/dev-int-stateful` is defined, never deployed. Internal and
   external never share a cluster (design D52).
 - **Every cell is a pod-subnet cell**: the pods keep their addresses up to the hub firewall
   (`pod-addresses-to-firewall`: AKS's ip-masq-agent translates nothing), and each zone gets
