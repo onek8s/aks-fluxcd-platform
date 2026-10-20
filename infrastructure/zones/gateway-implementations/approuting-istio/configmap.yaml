@@ -9,6 +9,8 @@
 #     subnet snet-${zone}-ilb, reached from the network only; an external zone's is public, and
 #     Azure Traffic Manager points the applications' hostnames at it in every cell (aks-terraform,
 #     shared/: global_hostnames). Only port 443: no plain HTTP anywhere, not even a redirect;
+#   - Cilium's `service.cilium.io/node-selector`: on a zone node Cilium leaves the load balancer's
+#     address alone, so a zone pod calling a published name goes out through the hub firewall;
 #   - `externalTrafficPolicy: Local`, which keeps the client's address on the requests the gateway
 #     sees and sends traffic only to nodes a gateway pod runs on. The load balancer then probes the
 #     Service's health check node port, so the probe annotations the add-on sets for the
@@ -47,6 +49,9 @@ data:
       annotations:
         service.beta.kubernetes.io/azure-load-balancer-internal: "${zone_internal}"
         service.beta.kubernetes.io/azure-load-balancer-internal-subnet: snet-${zone}-ilb
+        # Cilium installs the Service on the nodes outside the zones alone (design D73), as aks-terraform's
+        # gateways/traefik does: a zone pod that calls a published name goes through the hub firewall.
+        service.cilium.io/node-selector: "!platform/zone"
         service.beta.kubernetes.io/port_80_health-probe_port:
         service.beta.kubernetes.io/port_80_health-probe_protocol:
         service.beta.kubernetes.io/port_80_health-probe_request-path:
