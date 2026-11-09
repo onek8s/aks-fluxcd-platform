@@ -337,8 +337,8 @@ kubectl delete storageclass default managed-csi-premium-v2
 
 ### Zone nodes
 
-A zone's nodes are aks-terraform's classic node pools (`zone_node_pools`): per zone `<zone>`, `<zone>spot`,
-`<zone>arm` and `<zone>armspot`, from 0 nodes, labelled `platform/zone=<zone>` and tainted
+A zone's nodes are aks-terraform's classic node pools (`zone_node_pools`): per zone and generation
+`<country><generation>`, `...spot`, `...arm` and `...armspot` (`se1spot`), from 0 nodes, labelled `platform/zone=<zone>` and tainted
 `platform/zone=<zone>:NoSchedule` (the spot pools also `platform/capacity=spot:NoSchedule`), as in the design's
 [node pools](https://onek8s.github.io/design/2.3-node-pools.html). The cluster autoscaler's `priority` expander
 (`infrastructure/autoscaler-priority`) tries the spot pools first; when Azure has no spot capacity it moves on to

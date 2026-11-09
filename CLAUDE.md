@@ -18,8 +18,8 @@ and `tenants/`). Specific to it:
   `firewall-egress-<zone>` (`infrastructure/zones/firewall-egress`): its application namespaces go out to
   `world` and resolve any name - the firewall decides per application (azure-landing-zone
   `firewall-applications/`, proposed by aks-ai-agents' egress agent). Cilium keeps the in-cluster rules.
-- **Zone nodes are aks-terraform's classic pools** (`zone_node_pools`: `<zone>`, `<zone>spot`, `<zone>arm`,
-  `<zone>armspot`); `infrastructure/autoscaler-priority` (the cluster autoscaler's priority expander) puts
+- **Zone nodes are aks-terraform's classic pools** (`zone_node_pools`: per zone and generation `se1`, `se1spot`,
+  `se1arm`, `se1armspot`; two generations side by side in a blue/green pool upgrade); `infrastructure/autoscaler-priority` (the cluster autoscaler's priority expander) puts
   the spot pools first. No NAP / NodePools: NAP does not support a pod subnet.
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
   substitutions such as `key_vault_url_<ns>`).
