@@ -21,15 +21,12 @@ data:
   cluster_exposure: "${cluster_exposure}"
   azure_tenant_id: "${azure_tenant_id}"
   # The environment's platform Key Vault - the gateways' certificates, the Grafana Cloud credentials -
-  # and, for each namespace with a share of a vault, the vault and the identity that namespace's
-  # `key-vault` service account reads it as. A namespace reads the secrets named `<namespace>--...`
-  # and no others. The zones' gateways get theirs in zones.yaml.
+  # and the identity flux-system's `key-vault` service account reads it as. A namespace reads the
+  # secrets named `<namespace>--...` and no others. The zones' gateways get theirs in zones.yaml; a
+  # tenant gets its own from its `<namespace>-access` Flux configuration (aks-terraform tenants/), so
+  # nothing here names a tenant.
   key_vault_url: "${key_vault_url}"
   key_vault_client_id_flux_system: "${key_vault_client_id_flux_system}"
-  key_vault_client_id_int_fi_example: "${key_vault_client_id_int_fi_example}"
-  key_vault_url_int_fi_example: "${key_vault_url_int_fi_example}"
-  key_vault_client_id_int_se_example: "${key_vault_client_id_int_se_example}"
-  key_vault_url_int_se_example: "${key_vault_url_int_se_example}"
   # The public zone and the identity external-dns writes as - an internal cell publishes nothing
   # there - and the resource group of the internal zones' private DNS (int-fi.dev.onek8s.lol, int-se.dev.onek8s.lol), which
   # external-dns-int keeps.

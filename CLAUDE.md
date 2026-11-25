@@ -3,15 +3,14 @@
 The shared working notes for all OneK8s repos (deployment workflows, current state of dev, decisions
 and gotchas) are in `onek8s/aks-terraform/CLAUDE.md`. Read that first.
 
-This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pulling `infrastructure/`
-and `tenants/`). Specific to it:
+This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pulling `infrastructure/`). Specific to it:
 
 - **Validate locally**: `kustomize build` of every changed directory (the CI workflow does the same) and
   `python3 scripts/check-egress.py <paths>` for application network policies (the landing zone's `app-egress` rule). Flux applies `main` within minutes of a merge
   (every lab cell polls); check the result with aks-terraform's Cluster status workflow.
 - **Clusters**: `clusters/dev-int-stateless-az3` is the lab's one cell (design v2.0): internal, Sweden's
   int-se and (since 2026-10-20) Finland's int-fi, Azure CNI Pod Subnet behind the hub's labfw - no platform gateway, no Flux webhook;
-  tenants `tenants/int-se-example` and `tenants/int-fi-example`. `clusters/dev-int-stateful` is defined, never deployed. Internal and
+  no tenant here: aks-terraform's tenants/ stack applies `infrastructure/tenant` and `infrastructure/zone-tenants` per tenant and zone. `clusters/dev-int-stateful` is defined, never deployed. Internal and
   external never share a cluster (design D52).
 - **Every cell is a pod-subnet cell**: the pods keep their addresses up to the hub firewall
   (`pod-addresses-to-firewall`: AKS's ip-masq-agent translates nothing), and each zone gets
