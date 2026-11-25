@@ -1,0 +1,32 @@
+# The zone's Key Vault, read as the namespace's share of it: the secrets named `${namespace}--...`, and no
+# others (design section 2.5) - see infrastructure/zones/certificate.yaml for how. The zone's External
+# Secrets Operator (`controller: ${zone}`) syncs it; the application itself never calls Key Vault, and its
+# pods cannot reach a vault (the hub firewall lets only the system pool reach the vaults). The service
+# account's name is part of the federation aks-terraform's tenants/ makes, so it cannot change, and no pod
+# of the team runs as it.
+#
+# The team holds `admin` in its namespace when its groups say so, so it can add ExternalSecrets of its own
+# against this store; the team's writers put secrets under the prefix in the vault themselves.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: key-vault
+  namespace: ${namespace}
+  annotations:
+    azure.workload.identity/client-id: ${key_vault_client_id}
+    azure.workload.identity/tenant-id: ${azure_tenant_id}
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: key-vault
+  namespace: ${namespace}
+spec:
+  controller: ${zone}
+  provider:
+    azurekv:
+      authType: WorkloadIdentity
+      vaultUrl: ${key_vault_url}
+      serviceAccountRef:
+        name: key-vault

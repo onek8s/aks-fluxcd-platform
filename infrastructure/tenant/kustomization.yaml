@@ -1,0 +1,17 @@
+# What the platform puts into every tenant namespace (an application namespace, `<zone>-<app>`), applied
+# by the namespace's own platform Flux configuration `<namespace>-access` (Kustomization
+# `<namespace>-access-store`), which aks-terraform's tenants/ stack makes for each tenant of its catalogue
+# in every cell of the tenant's zone, with these values (Flux post-build substitution):
+#
+#   ${namespace}            the namespace
+#   ${zone}                 its isolation zone, whose External Secrets Operator syncs its store
+#   ${key_vault_url}        the zone's Key Vault
+#   ${key_vault_client_id}  the namespace's shared identity, federated with this cell's key-vault service account
+#   ${azure_tenant_id}      the Entra ID tenant
+#
+# One directory for every tenant, so a new tenant adds nothing here (design section 3.3).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - key-vault.yaml
+  - default-service-account.yaml

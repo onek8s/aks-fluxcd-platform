@@ -46,6 +46,10 @@ infrastructure/
   image-verification/     # Ratify's configuration for AKS Image Integrity: the platform's signing
                           # certificate, the registry's signatures, the Notation trust policy
   storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
+  tenant/                 # what every tenant namespace gets (its `key-vault` service account and SecretStore,
+                          # its default service account), applied by aks-terraform tenants/'s `<namespace>-access`
+  zone-tenants/           # the ConfigMap `tenants-<zone>`: the namespaces the zone's gateway watches,
+                          # applied by aks-terraform tenants/'s `tenants-<zone>`
 tenants/
   <namespace>/            # what a team's namespace needs: its `key-vault` service account and SecretStore
 ```
