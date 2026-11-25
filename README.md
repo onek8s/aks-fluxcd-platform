@@ -25,7 +25,6 @@ clusters/
                           # `external-dns-internal`, `flux-system-key-vault`, `image-verification`,
                           # `observability`, `pod-addresses-to-firewall`, `autoscaler-priority`
     zones.yaml            # per zone `zone-<zone>` -> infrastructure/zones and `firewall-egress-<zone>`
-    tenants.yaml          # Flux Kustomization `tenants` -> tenants/<namespace>
   dev-int-stateful/       # aks-dev-int-stateful: defined, not deployed - controllers and storage only
 infrastructure/
   controllers/            # External Secrets Operator (CRDs, webhook, the platform's controller)
@@ -50,8 +49,6 @@ infrastructure/
                           # its default service account), applied by aks-terraform tenants/'s `<namespace>-access`
   zone-tenants/           # the ConfigMap `tenants-<zone>`: the namespaces the zone's gateway watches,
                           # applied by aks-terraform tenants/'s `tenants-<zone>`
-tenants/
-  <namespace>/            # what a team's namespace needs: its `key-vault` service account and SecretStore
 ```
 
 - `clusters/<cluster>/` is the path a cluster's `flux_git_repository.path` names. It holds Flux
@@ -378,22 +375,24 @@ its own from aks-terraform (`managed_namespaces.<namespace>.owner`).
 
 ## Tenants
 
-A team's application is one entry in aks-terraform's `managed_namespaces`, `<zone>-<app>`: the AKS
-managed namespace with its quota, default network policies (`AllowSameNamespace` both ways), Pod
-Security Standard and the label `platform/zone`, who gets into it, its share of its zone's vault, and -
-in `flux` - its repository. aks-terraform turns that last part into a **namespace-scoped Flux
-configuration** of the team's own, named after the namespace. The extension applies it as the
+A team's application is one file in aks-terraform's tenant catalogue (`tenants/catalogue/<env>/<zone>-<app>.yaml`),
+which aks-terraform's `tenants/` stack turns, in every cell of the zone, into the AKS managed namespace
+with its quota, default network policies (`AllowSameNamespace` both ways), Pod Security Standard and the
+label `platform/zone`, who gets into it, its share of its zone's vault, and - in `flux` - a
+**namespace-scoped Flux configuration** of the team's own, named after the namespace. The extension applies it as the
 `flux-applier` service account of that namespace and refuses references across namespaces, so the
 team changes its own namespace and nothing else.
 
-`tenants/<namespace>/` here is what the team needs inside the cluster: the `key-vault` service account
-and SecretStore for the namespace's share of its zone's vault. The zone's Cilium baseline applies by the
-namespace's label. Adding a team is an entry in aks-terraform's variables files (the cell's and `shared/`'s)
-and a `tenants/<namespace>/` directory here, named by the cell's `tenants.yaml`.
+What the team needs inside the cluster - the `key-vault` service account and SecretStore for the
+namespace's share of its zone's vault, its default service account - is `infrastructure/tenant/`, one
+directory for every tenant, applied by the tenant's `<namespace>-access` Flux configuration with the
+tenant's values. The zone's gateway watches the namespaces of `infrastructure/zone-tenants/` (the
+ConfigMap `tenants-<zone>`). The zone's Cilium baseline applies by the namespace's label. **Adding a team
+changes nothing here**: one catalogue file in aks-terraform, applied with `dev-shared` then `dev-tenants`.
 
 | Team | Namespace | Repository |
 | --- | --- | --- |
-| example | `int-se-example` (az3), `int-fi-example` (the stateful cluster) | [onek8s/aks-fluxcd-example](https://github.com/onek8s/aks-fluxcd-example) |
+| example | `int-se-example`, `int-fi-example` (az3) | [onek8s/aks-fluxcd-example](https://github.com/onek8s/aks-fluxcd-example) |
 
 A team keeps its own secrets as `<namespace>--<name>` in its zone's vault, and syncs them with an
 `ExternalSecret` of its own against the namespace's `key-vault` store:
