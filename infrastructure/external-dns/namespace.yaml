@@ -1,6 +1,7 @@
-# Held to the restricted Pod Security Standard, like every namespace the cluster manages itself. The
-# managed external-dns (App Routing) runs non-root, with no privilege escalation, every capability
-# dropped and the RuntimeDefault seccomp profile (not verified with the managed Deployment).
+# Pod Security Standard baseline, audited and warned against restricted, like the zones' gateway
+# namespaces: App Routing's managed external-dns runs non-root, read-only, with no privilege
+# escalation and every capability dropped, but sets no seccomp profile, so restricted refused its
+# pods (the Deployment stayed at 0 of 1). Its Deployment is App Routing's, not ours to patch.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -8,7 +9,7 @@ metadata:
   labels:
     platform/team: platform
     platform/cost-center: platform
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
   annotations:
