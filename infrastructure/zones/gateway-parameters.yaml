@@ -7,8 +7,7 @@
 #     one system node of a lab cell;
 #   - the load balancer: an internal zone's is an Azure internal load balancer in the zone's own
 #     subnet snet-${zone}-ilb, reached from the network only; an external zone's is public, and
-#     Azure Traffic Manager points the applications' hostnames at it in every cell (aks-terraform,
-#     shared/: global_hostnames). Only port 443: no plain HTTP anywhere, not even a redirect;
+#     the applications' names in the public zone point at it in their home cell. Only port 443: no plain HTTP anywhere, not even a redirect;
 #   - Cilium's `service.cilium.io/node-selector`: on a zone node Cilium leaves the load balancer's
 #     address alone, so a zone pod calling a published name goes out through the hub firewall;
 #   - `externalTrafficPolicy: Local`, which keeps the client's address on the requests the gateway

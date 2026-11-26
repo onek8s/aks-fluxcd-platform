@@ -203,17 +203,14 @@ and App Routing's Gateway API implementation, which serves them:
   moving the application moves the route, and the old cell's external-dns removes the record as the
   new cell's adds it (a short gap, design section 3.1).
 
-### One hostname in every cell
+### One home cell per application
 
-An external application has one name that every cell serves - `hello.ext-fi.dev.onek8s.lol` - behind
-**Azure Traffic Manager** (design section 3.1): aks-terraform keeps it as a CNAME to a Traffic Manager
-profile (`shared/`, `global_hostnames`) whose endpoints are the application's own name in each cell
-(`hello-<cluster>.ext-fi.dev.onek8s.lol`, an A record of that cell's ext-fi gateway), weighted alike,
-with an HTTPS probe of `/healthz` on the global name - so DNS hands out one cell or the other, and
-leaves out one that stops answering. The route that names the global name carries
-`external-dns.kubernetes.io/controller: traffic-manager`, which external-dns leaves alone (not yet
-verified with the managed external-dns). The page
-says which cluster answered.
+Every application, internal or external, runs in one home cell (design section 3.1): its own name -
+`hello.ext-fi.dev.onek8s.lol` - has its route in that cell alone, so the cell's external-dns publishes it,
+an A record of the cell's zone gateway in the public zone (external) or the zone's Private DNS
+(internal). Every cell the application runs in also publishes its per-cell name
+(`hello-<cluster>.ext-fi.dev.onek8s.lol`). There is no Traffic Manager: the migration workflow moves
+the route, and with it the record. The page says which cluster answered.
 
 ### Cluster settings
 

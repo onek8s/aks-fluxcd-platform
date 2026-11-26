@@ -8,11 +8,6 @@
 # internal name is routed by its home cell alone (aks-terraform tenants/, `flux.home`), so no
 # filter here names a cell.
 #
-# A route that names a hostname every cell serves - one Azure Traffic Manager answers for
-# (aks-terraform, shared/: global_hostnames) - says so with the annotation
-# `external-dns.kubernetes.io/controller: traffic-manager` (not verified with the managed
-# external-dns: no external cell runs today).
-#
 # It acts as the `<cluster identity>-dns` identity aks-terraform creates, federated with the service
 # account `external-dns` in `external-dns` (service-account.yaml), which holds DNS Zone Contributor on
 # the public zone and Private DNS Zone Contributor on the internal ones.
