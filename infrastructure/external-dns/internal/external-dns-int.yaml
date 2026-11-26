@@ -12,6 +12,12 @@ apiVersion: approuting.kubernetes.azure.com/v1alpha1
 kind: ClusterExternalDNS
 metadata:
   name: external-dns-int
+  annotations:
+    # App Routing reconciles a ClusterExternalDNS when it changes and does not retry one whose service
+    # account was missing (a warning event, then nothing). The move from our own external-dns Helm
+    # releases deleted `external-dns` for a moment (design v5.0), and this object was left without a
+    # Deployment; this annotation changed it so that it is reconciled again.
+    platform/service-account: external-dns
 spec:
   resourceName: external-dns-int
   resourceNamespace: external-dns
