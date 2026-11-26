@@ -23,12 +23,12 @@ This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pullin
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
   substitutions such as `key_vault_url_<ns>`).
 - **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Gateway (class
-  `approuting-istio`, App Routing's - Traefik is gone since design v4.13 - shaped by the ConfigMap `gateway` of
+  `approuting-istio`, App Routing's - Traefik is gone since design v5.0 - shaped by the ConfigMap `gateway` of
   `gateway-parameters.yaml`), ESO
   (`controllerClass: <zone>`), certificate, Cilium baseline (default deny; DNS for `cluster.local` and
   `internal.cloudapp.net`, the latter so musl resolvers do not stop on the node's search suffix). Gateway
   pods and ESO run on the **system pool**, so a zone without applications has no nodes.
-- **DNS is App Routing's managed external-dns** (design v4.13 trial): `infrastructure/external-dns` holds only
+- **DNS is App Routing's managed external-dns** (design v5.0 trial): `infrastructure/external-dns` holds only
   `ClusterExternalDNS` `external-dns-ext` (+ `internal/` `external-dns-int`), the service account `external-dns`
   (federated by aks-terraform) and its Cilium policy; zones by resource ID (`dns_zone_id`, `internal_dns_zone_ids`).
   No `platform/home-cell` filter: the route is the DNS switch (the home route is applied in the home cell only).
