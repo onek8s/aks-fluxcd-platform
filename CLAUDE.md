@@ -28,6 +28,10 @@ This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pullin
   (`controllerClass: <zone>`), certificate, Cilium baseline (default deny; DNS for `cluster.local` and
   `internal.cloudapp.net`, the latter so musl resolvers do not stop on the node's search suffix). Gateway
   pods and ESO run on the **system pool**, so a zone without applications has no nodes.
+- **DNS is App Routing's managed external-dns** (design v4.13 trial): `infrastructure/external-dns` holds only
+  `ClusterExternalDNS` `external-dns-ext` (+ `internal/` `external-dns-int`), the service account `external-dns`
+  (federated by aks-terraform) and its Cilium policy; zones by resource ID (`dns_zone_id`, `internal_dns_zone_ids`).
+  No `platform/home-cell` filter: the route is the DNS switch (the home route is applied in the home cell only).
 - `policy/egress-allow-lists.yaml` is also read by aks-ai-agents' traffic flow documentation (design 5.3).
 - **Image Integrity** (`infrastructure/image-verification`): Ratify's KeyManagementProvider, Store and
   Verifier, all named `platform`; trusts only the platform certificate's subject.

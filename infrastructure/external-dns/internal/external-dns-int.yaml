@@ -1,0 +1,25 @@
+# The internal gateways' DNS - `platform/exposure: int` - in the internal zones' Azure Private DNS
+# zones (int-fi.<env>.onek8s.lol, ...), which aks-terraform's shared/ creates in the cells' resource
+# group and links to every cell's network. Only in an internal cluster: internal and external
+# workloads never share a cluster (OneK8s design decision D52), so an external one has no internal
+# gateway and no private zone, and does not pull this directory in. App Routing's managed
+# external-dns, as ../external-dns-ext.yaml, with the same service account.
+#
+# `internal_dns_zone_ids` is a YAML flow sequence of the zones' resource IDs (`[<id>,...]`; at most 7,
+# in one resource group: the managed external-dns's limits). No filter names a cell: an
+# application's internal name has a route in its home cell only (aks-terraform tenants/, `flux.home`).
+apiVersion: approuting.kubernetes.azure.com/v1alpha1
+kind: ClusterExternalDNS
+metadata:
+  name: external-dns-int
+spec:
+  resourceName: external-dns-int
+  resourceNamespace: external-dns
+  dnsZoneResourceIDs: ${internal_dns_zone_ids}
+  resourceTypes:
+    - gateway
+  identity:
+    type: workloadIdentity
+    serviceAccount: external-dns
+  filters:
+    gatewayLabels: platform/exposure=int

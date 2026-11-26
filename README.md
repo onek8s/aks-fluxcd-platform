@@ -36,7 +36,7 @@ infrastructure/
   pod-addresses-to-firewall/ # AKS's ip-masq-agent translates nothing: the firewall sees the pods
   autoscaler-priority/    # the cluster autoscaler's priority expander: the zones' spot pools first
   platform-gateway/       # the platform's own gateway: Flux's webhook receivers (a cell with a public entry point)
-  external-dns/           # external-dns, publishing the gateways' hostnames in Azure DNS (external)
+  external-dns/           # App Routing's managed external-dns: the gateways' hostnames in Azure DNS (external)
     internal/             # ... and in Azure Private DNS (internal clusters only)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
   flux-system-key-vault/  # flux-system's SecretStore on the platform vault (webhook token, Grafana Cloud)
@@ -70,7 +70,7 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | External Secrets Operator, a zone's: controller `<zone>` | `<zone>-secrets` | system pool | the same |
 | A zone's gateway: App Routing's Envoy `<zone>-approuting-istio` | `<zone>-gateway` | system pool | none - AKS creates it for the Gateway (below) |
 | The platform's gateway: the same, `platform-approuting-istio` | `platform-gateway` | system pool | the same |
-| external-dns, external and internal | `external-dns` | system pool | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/ |
+| external-dns, external and internal: App Routing's managed `external-dns-ext`, `external-dns-int` | `external-dns` | as App Routing places it | none - AKS runs it for the `ClusterExternalDNS` (below) |
 | Grafana Alloy (Fleet Management), node-exporter, kube-state-metrics, Beyla cache, OpenCost | `infra-observability` | Alloy and node-exporter on every node; the rest on the system pool | `k8s-monitoring` 4.5.2 from https://grafana.github.io/helm-charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
@@ -186,8 +186,9 @@ and App Routing's Gateway API implementation, which serves them:
 - A team's route attaches to its zone's Gateway (`namespace: <zone>-gateway`, `name: <zone>`) and
   names its hostnames, below the zone's domain - which aks-terraform gives the team's Flux
   configuration as `${zone_domain}`. A route in another zone's namespace is not accepted.
-- **DNS** (`infrastructure/external-dns`, and `internal/` in an internal cluster), two releases, each keeping a TXT record beside every
-  record marking it as its own, so neither ever deletes a record it did not create:
+- **DNS** (`infrastructure/external-dns`, and `internal/` in an internal cluster): App Routing's managed
+  external-dns, two `ClusterExternalDNS` resources naming their zones by resource ID - AKS runs and
+  upgrades the Deployments; nothing of them is in this repository but the two resources:
   - `external-dns-ext`: the routes of the Gateways labelled `platform/exposure: ext` - the external
     zones' and the platform's - as A records to the gateway's public address, in the public zone.
   - `external-dns-int` (internal clusters only): the routes of `platform/exposure: int` Gateways, as A records to the internal
@@ -195,7 +196,12 @@ and App Routing's Gateway API implementation, which serves them:
     (`int-fi.dev.onek8s.lol`, ...; aks-terraform's `shared/`), which resolve inside the cells only.
 
   Both act as the `<cluster identity>-dns` identity aks-terraform creates, federated with
-  `external-dns/external-dns`.
+  `external-dns/external-dns`. **The route is the DNS switch**: a cell publishes the names of the
+  routes it has, and no filter names a cell. An internal application's own name
+  (`hello.int-se.dev.onek8s.lol`) has its route in its home cell only - the team's repository keeps it
+  in a path of its own, which aks-terraform's tenants/ applies in the cell `flux.home` names - so
+  moving the application moves the route, and the old cell's external-dns removes the record as the
+  new cell's adds it (a short gap, design section 3.1).
 
 ### One hostname in every cell
 
@@ -205,7 +211,8 @@ profile (`shared/`, `global_hostnames`) whose endpoints are the application's ow
 (`hello-<cluster>.ext-fi.dev.onek8s.lol`, an A record of that cell's ext-fi gateway), weighted alike,
 with an HTTPS probe of `/healthz` on the global name - so DNS hands out one cell or the other, and
 leaves out one that stops answering. The route that names the global name carries
-`external-dns.kubernetes.io/controller: traffic-manager`, which external-dns leaves alone. The page
+`external-dns.kubernetes.io/controller: traffic-manager`, which external-dns leaves alone (not yet
+verified with the managed external-dns). The page
 says which cluster answered.
 
 ### Cluster settings
@@ -216,8 +223,8 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | Variable | Set by | |
 | --- | --- | --- |
 | `key_vault_url`, `key_vault_url_<namespace>`, `key_vault_client_id_<namespace>` | aks-terraform | The platform vault, a namespace's vault, and the identity each namespace's `key-vault` service account reads its share as. The zones' gateways' client IDs go straight into `zones.yaml`. |
-| `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id`, `internal_dns_resource_group_name` | aks-terraform | The public zone, the internal zones' resource group (internal clusters only), and the identity that writes them. |
-| `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
+| `dns_zone_name`, `dns_zone_id`, `dns_identity_client_id`, `internal_dns_zone_ids` | aks-terraform | The public zone (name and resource ID), the internal zones' resource IDs as a YAML flow sequence (internal clusters only), and the identity that writes them. |
+| `cluster_name`, `azure_tenant_id` | aks-terraform | The cluster's name, and the tenant the identities live in. |
 | `cluster_exposure` | aks-terraform | `int` or `ext`: the cluster's exposure (design decision D52) - which zones and external-dns releases it runs. |
 | `flux_webhook_hostname` | this repository | The platform gateway's hostname, this cluster's own, below `onek8s.lol`. |
 
