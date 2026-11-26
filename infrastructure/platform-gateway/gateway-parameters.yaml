@@ -1,5 +1,5 @@
-# App Routing: the system pool, small requests, a public load balancer on 443 only and
-# `externalTrafficPolicy: Local` - see infrastructure/zones/gateway.yaml.
+# What the platform gateway's Deployment and Service get beyond App Routing's defaults: the system pool, small requests, a public load balancer on 443 only and
+# `externalTrafficPolicy: Local` - see infrastructure/zones/gateway-parameters.yaml.
 apiVersion: v1
 kind: ConfigMap
 metadata:

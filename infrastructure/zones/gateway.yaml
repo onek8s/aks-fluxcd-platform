@@ -6,24 +6,14 @@
 # external zone, the zone's private one for an internal zone (infrastructure/external-dns picks the
 # Gateways by `platform/exposure`).
 #
-# The class, ${gateway_class_name}, is aks-terraform's choice (gateway_implementation), handed over
-# as `gateway_class_name_<zone>` (zones.yaml):
-#
-#   - `traefik-${zone}`: Traefik Proxy for this one Gateway, deployed by aks-terraform itself (its
-#     gateways/traefik, a Flux configuration `traefik-${zone}`), with its own Cilium policy for the
-#     API server. It refuses an `infrastructure.parametersRef` (Accepted False).
-#   - `approuting-istio`: AKS's App Routing Gateway API implementation, a sidecar-less Istio control
-#     plane - no service mesh. For this Gateway it creates, in this namespace,
-#     `${zone}-approuting-istio`: an Envoy Deployment, its `LoadBalancer` Service, an autoscaler and
-#     a disruption budget, shaped by the ConfigMap `gateway` that the component
-#     gateway-implementations/approuting-istio adds with the Gateway's `infrastructure.parametersRef`. Its istiod requests 1 CPU and 4 GiB before
-#     the first Gateway (https://github.com/Azure/AKS/issues/5939), hence the choice.
-#
-# What only one implementation takes is a kustomize component, gateway-implementations/<implementation>,
-# which zones.yaml names after aks-terraform's `gateway_implementation`. Either implementation copies
-# the load balancer's address into the Gateway's status, listens on 443 and labels its pods
-# `gateway.networking.k8s.io/gateway-name: ${zone}`, which cilium.yaml lets in. Changing a
-# Gateway's class re-creates it rather than failing on the change (Flux `force`).
+# The class is App Routing's Gateway API implementation, `approuting-istio`: a sidecar-less Istio
+# control plane - no service mesh. For this Gateway it creates, in this namespace,
+# `${zone}-approuting-istio`: an Envoy Deployment, its `LoadBalancer` Service, an autoscaler and a
+# disruption budget, shaped by the ConfigMap `gateway` (gateway-parameters.yaml) that the Gateway
+# names in `infrastructure.parametersRef`. It copies the load balancer's address into the Gateway's
+# status, listens on 443 and labels its pods `gateway.networking.k8s.io/gateway-name: ${zone}`, which
+# cilium.yaml lets in. App Routing's listeners offer HTTP/2 and HTTP/1.1, TLS 1.2 and 1.3 (design
+# section 4.1). Flux `force` re-creates the Gateway rather than failing on a change of class.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -35,7 +25,12 @@ metadata:
   annotations:
     kustomize.toolkit.fluxcd.io/force: enabled
 spec:
-  gatewayClassName: ${gateway_class_name}
+  gatewayClassName: approuting-istio
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: gateway
   listeners:
     - name: https
       protocol: HTTPS

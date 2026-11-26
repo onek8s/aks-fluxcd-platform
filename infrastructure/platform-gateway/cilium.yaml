@@ -2,8 +2,7 @@
 # gateway (infrastructure/zones/cilium.yaml): in on its one listener, 443, from the load balancer -
 # whose clients keep their own addresses, so they are `world` to Cilium - and from the node (kubelet
 # probes); out to Flux's webhook receivers (notification-controller's port 9292 in flux-system, the only
-# routes it may carry) and, with App Routing, to its istiod for configuration and certificates (xDS,
-# 15012). With Traefik, aks-terraform adds a policy of its own for the API server (gateways/traefik).
+# routes it may carry) and to App Routing's istiod for configuration and certificates (xDS, 15012).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
