@@ -10,7 +10,7 @@ This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pullin
   (every lab cell polls); check the result with aks-terraform's Cluster status workflow.
 - **Clusters**: `clusters/dev-int-stateless-az3` is the lab's one cell (design v2.0): internal, Sweden's
   int-se and (since 2026-10-20) Finland's int-fi, Azure CNI Pod Subnet behind the hub's labfw - no platform gateway, no Flux webhook;
-  no tenant here: aks-terraform's tenants/ stack applies `infrastructure/tenant` and `infrastructure/zone-tenants` per tenant and zone. `clusters/dev-int-stateful` is defined, never deployed. Internal and
+  no tenant here: aks-terraform's tenants/ stack applies `infrastructure/tenant` per tenant. `clusters/dev-int-stateful` is defined, never deployed. Internal and
   external never share a cluster (design D52).
 - **Every cell is a pod-subnet cell**: the pods keep their addresses up to the hub firewall
   (`pod-addresses-to-firewall`: AKS's ip-masq-agent translates nothing), and each zone gets
@@ -23,12 +23,15 @@ This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pullin
 - **Values come from aks-terraform** through `clusters/<cluster>/cluster-settings.yaml` (`${...}`
   substitutions such as `key_vault_url_<ns>`).
 - **Isolation zones** (`infrastructure/zones`, applied once per zone via `zones.yaml`): Gateway (class
-  `${gateway_class_name}` from aks-terraform's `gateway_implementation`: `traefik-<zone>`, deployed by
-  aks-terraform's `gateways/traefik`, or `approuting-istio`, whose ConfigMap `gateway` comes only through the
-  kustomize component `gateway-implementations/approuting-istio` - Traefik refuses a `parametersRef`), ESO
+  `approuting-istio`, App Routing's - Traefik is gone since design v5.0 - shaped by the ConfigMap `gateway` of
+  `gateway-parameters.yaml`), ESO
   (`controllerClass: <zone>`), certificate, Cilium baseline (default deny; DNS for `cluster.local` and
   `internal.cloudapp.net`, the latter so musl resolvers do not stop on the node's search suffix). Gateway
   pods and ESO run on the **system pool**, so a zone without applications has no nodes.
+- **DNS is App Routing's managed external-dns** (design v5.0): `infrastructure/external-dns` holds only
+  `ClusterExternalDNS` `external-dns-ext` (+ `internal/` `external-dns-int`), the service account `external-dns`
+  (federated by aks-terraform) and its Cilium policy; zones by resource ID (`dns_zone_id`, `internal_dns_zone_ids`).
+  No `platform/home-cell` filter: the route is the DNS switch (the home route is applied in the home cell only).
 - `policy/egress-allow-lists.yaml` is also read by aks-ai-agents' traffic flow documentation (design 5.3).
 - **Image Integrity** (`infrastructure/image-verification`): Ratify's KeyManagementProvider, Store and
   Verifier, all named `platform`; trusts only the platform certificate's subject.
@@ -45,4 +48,4 @@ This repo is what Flux deploys into every cluster (`clusters/<cluster>/`, pullin
 - **Namespace access** (`infrastructure/namespace-access/{view,edit,admin}`): RoleBinding templates that
   aks-terraform's `<ns>-access` Flux configurations apply (one per namespace: Azure refuses two
   Kustomizations of one configuration on one path).
-- **The lab cell runs one 8 GiB system node** (Traefik, no VPA add-on): keep new platform requests small.
+- **The lab cell runs two 8 GiB system nodes** (istiod takes 2 x 2 GiB, no VPA add-on): keep new platform requests small.

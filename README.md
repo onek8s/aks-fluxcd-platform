@@ -36,7 +36,7 @@ infrastructure/
   pod-addresses-to-firewall/ # AKS's ip-masq-agent translates nothing: the firewall sees the pods
   autoscaler-priority/    # the cluster autoscaler's priority expander: the zones' spot pools first
   platform-gateway/       # the platform's own gateway: Flux's webhook receivers (a cell with a public entry point)
-  external-dns/           # external-dns, publishing the gateways' hostnames in Azure DNS (external)
+  external-dns/           # App Routing's managed external-dns: the gateways' hostnames in Azure DNS (external)
     internal/             # ... and in Azure Private DNS (internal clusters only)
   flux-webhook/           # Flux's GitHub webhook receiver, on the platform gateway
   flux-system-key-vault/  # flux-system's SecretStore on the platform vault (webhook token, Grafana Cloud)
@@ -47,8 +47,6 @@ infrastructure/
   storage/                # the `portable-disk` StorageClass, whose disks outlive the cluster
   tenant/                 # what every tenant namespace gets (its `key-vault` service account and SecretStore,
                           # its default service account), applied by aks-terraform tenants/'s `<namespace>-access`
-  zone-tenants/           # the ConfigMap `tenants-<zone>`: the namespaces the zone's gateway watches,
-                          # applied by aks-terraform tenants/'s `tenants-<zone>`
 ```
 
 - `clusters/<cluster>/` is the path a cluster's `flux_git_repository.path` names. It holds Flux
@@ -70,9 +68,9 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | --- | --- | --- | --- |
 | External Secrets Operator, the platform's: CRDs, webhook, controller `platform` | `external-secrets` | system pool | `external-secrets` 2.12.0 from https://charts.external-secrets.io |
 | External Secrets Operator, a zone's: controller `<zone>` | `<zone>-secrets` | system pool | the same |
-| A zone's gateway: Traefik `traefik`, or App Routing's Envoy `<zone>-approuting-istio` | `<zone>-gateway` | system pool | Traefik: `traefik` 41.7.x, deployed by aks-terraform (`gateways/traefik`); App Routing: none - AKS creates it for the Gateway (below) |
-| The platform's gateway: the same, `platform-approuting-istio` with App Routing | `platform-gateway` | system pool | the same |
-| external-dns, external and internal | `external-dns` | system pool | `external-dns` 1.23.x from https://kubernetes-sigs.github.io/external-dns/ |
+| A zone's gateway: App Routing's Envoy `<zone>-approuting-istio` | `<zone>-gateway` | system pool | none - AKS creates it for the Gateway (below) |
+| The platform's gateway: the same, `platform-approuting-istio` | `platform-gateway` | system pool | the same |
+| external-dns, external and internal: App Routing's managed `external-dns-ext`, `external-dns-int` | `external-dns` | as App Routing places it | none - AKS runs it for the `ClusterExternalDNS` (below) |
 | Grafana Alloy (Fleet Management), node-exporter, kube-state-metrics, Beyla cache, OpenCost | `infra-observability` | Alloy and node-exporter on every node; the rest on the system pool | `k8s-monitoring` 4.5.2 from https://grafana.github.io/helm-charts |
 
 The `HelmRelease` and `HelmRepository` objects live in `flux-system` and install into the namespace
@@ -95,7 +93,7 @@ applications costs no nodes.
 
 | In the zone | What | Design |
 | --- | --- | --- |
-| `<zone>-gateway` | The Gateway `<zone>`, class `traefik-<zone>` or `approuting-istio` (aks-terraform's `gateway_implementation`) - Traefik, or App Routing's Envoy Deployment and load balancer for it shaped by the ConfigMap `gateway` (system pool, small requests, load balancer annotations, `externalTrafficPolicy: Local`): one HTTPS listener for `*.<zone>.dev.onek8s.lol` with the zone's wildcard certificate, open to routes from the zone's application namespaces only. Its load balancer is an internal one in `snet-<zone>-ilb` for an internal zone, a public one for an external zone | section 4.1 |
+| `<zone>-gateway` | The Gateway `<zone>`, class `approuting-istio` - App Routing's Envoy Deployment and load balancer for it shaped by the ConfigMap `gateway` (system pool, small requests, load balancer annotations, `externalTrafficPolicy: Local`): one HTTPS listener for `*.<zone>.dev.onek8s.lol` with the zone's wildcard certificate, open to routes from the zone's application namespaces only. Its load balancer is an internal one in `snet-<zone>-ilb` for an internal zone, a public one for an external zone | section 4.1 |
 | `<zone>-secrets` | External Secrets Operator for the zone, `controllerClass: <zone>`: it syncs the stores that name `controller: <zone>` - the zone's - and no others. No CRDs, no webhook | section 2.5 |
 | Cilium | The application baseline of the zone, the gateway's and the External Secrets Operator's policies - see [Network policies](#network-policies) | sections 2.4, 2.6, 5.1 |
 
@@ -122,8 +120,7 @@ decides (design section 5.1; azure-landing-zone `firewall-applications/` and the
   Teams write no egress policy.
 - **The zone's gateway**: in on 443 from the load balancer (its clients keep their addresses, so
   they are `world` to Cilium) and from the node; out to the zone's application namespaces, istiod
-  in `aks-istio-system` (15012, its configuration and certificates, with App Routing) and cluster
-  DNS. Traefik also reads the API server, through a policy aks-terraform deploys with it.
+  in `aks-istio-system` (15012, its configuration and certificates) and cluster DNS.
 - **The zone's External Secrets Operator** and the platform's own namespaces: out to the API server
   and on 443 to `world` - Entra ID and Key Vault for ESO - where the firewall decides by name.
 
@@ -163,30 +160,23 @@ The names of every secret can be listed by every identity with a share - only va
 
 Applications are published through the [Kubernetes Gateway API][gatewayapi] on their zone's
 Gateway. aks-terraform turns on the managed Gateway API CRDs (Gateway API v1.5 on Kubernetes 1.36)
-and chooses the implementation that serves the Gateways (`gateway_implementation`); this repository
-only names the class it is told (`gateway_class_name_<gateway>`, zones.yaml and
-cluster-settings.yaml), and adds what only one implementation takes as the kustomize component
-`gateway-implementations/<gateway_implementation>` of `infrastructure/zones` and
-`infrastructure/platform-gateway`:
+and App Routing's Gateway API implementation, which serves them:
 
-- **Traefik** (the dev cells): Traefik Proxy, one Helm release per Gateway with a GatewayClass of
-  its own, `traefik-<gateway>`, deployed by aks-terraform from its own `gateways/traefik` - not from
-  here - so the implementation is aks-terraform's to switch. It refuses an `infrastructure.parametersRef`
-  (`Accepted: False`), so its component only annotates the Gateway.
 - **[App Routing's Gateway API implementation][approutinggw]**: a sidecar-less Istio control plane,
   `istiod` in `aks-istio-system`, serving the GatewayClass `approuting-istio` - no service mesh. For
   each Gateway of that class it creates an Envoy Deployment, a `LoadBalancer` Service, an autoscaler
   (at least two replicas) and a disruption budget in the Gateway's namespace, shaped by the ConfigMap
-  `gateway` its component adds with the Gateway's `spec.infrastructure.parametersRef`, within the add-on's customization allow
+  `gateway` (`gateway-parameters.yaml`) the Gateway names in `spec.infrastructure.parametersRef`, within the add-on's customization allow
   list. AKS upgrades it in place with the cluster. It does not offer rate limits, request size limits
   or `EnvoyFilter`, nor customizing the access log, and its istiod requests 1 CPU and 4 GiB before
   the first Gateway, not customizable ([Azure/AKS#5939][aks5939]) - a second system node per lab
-  cell, which is why the dev cells run Traefik.
+  cell. Its listeners offer HTTP/2 and HTTP/1.1, TLS 1.2 and 1.3: no listener setting refuses the
+  older ones (design section 4.1).
 
 | | Who | Where |
 | --- | --- | --- |
 | The Gateway API CRDs | AKS / Platform | aks-terraform |
-| The GatewayClass - `traefik-<gateway>` and Traefik, or `approuting-istio` and its control plane | Platform / AKS | aks-terraform |
+| The GatewayClass `approuting-istio` and its control plane | AKS | aks-terraform |
 | The zone's Gateway, its options (node pool, load balancer), its listener and certificate | Platform | `infrastructure/zones` |
 | DNS: a record per route hostname | Platform | `infrastructure/external-dns` |
 | `HTTPRoute`, `Service`, the app, its egress policy | Team | the team's own repository |
@@ -196,8 +186,9 @@ cluster-settings.yaml), and adds what only one implementation takes as the kusto
 - A team's route attaches to its zone's Gateway (`namespace: <zone>-gateway`, `name: <zone>`) and
   names its hostnames, below the zone's domain - which aks-terraform gives the team's Flux
   configuration as `${zone_domain}`. A route in another zone's namespace is not accepted.
-- **DNS** (`infrastructure/external-dns`, and `internal/` in an internal cluster), two releases, each keeping a TXT record beside every
-  record marking it as its own, so neither ever deletes a record it did not create:
+- **DNS** (`infrastructure/external-dns`, and `internal/` in an internal cluster): App Routing's managed
+  external-dns, two `ClusterExternalDNS` resources naming their zones by resource ID - AKS runs and
+  upgrades the Deployments; nothing of them is in this repository but the two resources:
   - `external-dns-ext`: the routes of the Gateways labelled `platform/exposure: ext` - the external
     zones' and the platform's - as A records to the gateway's public address, in the public zone.
   - `external-dns-int` (internal clusters only): the routes of `platform/exposure: int` Gateways, as A records to the internal
@@ -205,18 +196,21 @@ cluster-settings.yaml), and adds what only one implementation takes as the kusto
     (`int-fi.dev.onek8s.lol`, ...; aks-terraform's `shared/`), which resolve inside the cells only.
 
   Both act as the `<cluster identity>-dns` identity aks-terraform creates, federated with
-  `external-dns/external-dns`.
+  `external-dns/external-dns`. **The route is the DNS switch**: a cell publishes the names of the
+  routes it has, and no filter names a cell. An internal application's own name
+  (`hello.int-se.dev.onek8s.lol`) has its route in its home cell only - the team's repository keeps it
+  in a path of its own, which aks-terraform's tenants/ applies in the cell `flux.home` names - so
+  moving the application moves the route, and the old cell's external-dns removes the record as the
+  new cell's adds it (a short gap, design section 3.1).
 
-### One hostname in every cell
+### One home cell per application
 
-An external application has one name that every cell serves - `hello.ext-fi.dev.onek8s.lol` - behind
-**Azure Traffic Manager** (design section 3.1): aks-terraform keeps it as a CNAME to a Traffic Manager
-profile (`shared/`, `global_hostnames`) whose endpoints are the application's own name in each cell
-(`hello-<cluster>.ext-fi.dev.onek8s.lol`, an A record of that cell's ext-fi gateway), weighted alike,
-with an HTTPS probe of `/healthz` on the global name - so DNS hands out one cell or the other, and
-leaves out one that stops answering. The route that names the global name carries
-`external-dns.kubernetes.io/controller: traffic-manager`, which external-dns leaves alone. The page
-says which cluster answered.
+Every application, internal or external, runs in one home cell (design section 3.1): its own name -
+`hello.ext-fi.dev.onek8s.lol` - has its route in that cell alone, so the cell's external-dns publishes it,
+an A record of the cell's zone gateway in the public zone (external) or the zone's Private DNS
+(internal). Every cell the application runs in also publishes its per-cell name
+(`hello-<cluster>.ext-fi.dev.onek8s.lol`). There is no Traffic Manager: the migration workflow moves
+the route, and with it the record. The page says which cluster answered.
 
 ### Cluster settings
 
@@ -226,8 +220,8 @@ and handed to the Kustomizations through `postBuild.substituteFrom`:
 | Variable | Set by | |
 | --- | --- | --- |
 | `key_vault_url`, `key_vault_url_<namespace>`, `key_vault_client_id_<namespace>` | aks-terraform | The platform vault, a namespace's vault, and the identity each namespace's `key-vault` service account reads its share as. The zones' gateways' client IDs go straight into `zones.yaml`. |
-| `dns_zone_name`, `dns_zone_resource_group_name`, `dns_zone_subscription_id`, `dns_identity_client_id`, `internal_dns_resource_group_name` | aks-terraform | The public zone, the internal zones' resource group (internal clusters only), and the identity that writes them. |
-| `cluster_name`, `azure_tenant_id` | aks-terraform | external-dns's record owner, and the tenant the identities live in. |
+| `dns_zone_name`, `dns_zone_id`, `dns_identity_client_id`, `internal_dns_zone_ids` | aks-terraform | The public zone (name and resource ID), the internal zones' resource IDs as a YAML flow sequence (internal clusters only), and the identity that writes them. |
+| `cluster_name`, `azure_tenant_id` | aks-terraform | The cluster's name, and the tenant the identities live in. |
 | `cluster_exposure` | aks-terraform | `int` or `ext`: the cluster's exposure (design decision D52) - which zones and external-dns releases it runs. |
 | `flux_webhook_hostname` | this repository | The platform gateway's hostname, this cluster's own, below `onek8s.lol`. |
 
@@ -272,12 +266,12 @@ values come from `cluster-settings.yaml` (`image_verification_client_id`,
 
 ### Platform gateway
 
-`infrastructure/platform-gateway` is the Gateway `platform`, class `traefik-platform` or
+`infrastructure/platform-gateway` is the Gateway `platform`, class
 `approuting-istio`, its pods on the system pool behind a public load balancer, with one listener: `https-flux-webhook` for
 `flux-system`.
 
 The gateway namespaces enforce the baseline Pod Security Standard and audit and warn on restricted:
-App Routing's gateway pods set no seccomp profile (Traefik's meet restricted), and their security context is not on the
+App Routing's gateway pods set no seccomp profile, and their security context is not on the
 add-on's customization allow list. Everything else of restricted they meet.
 
 [gatewayapi]: https://gateway-api.sigs.k8s.io/
@@ -386,8 +380,8 @@ team changes its own namespace and nothing else.
 What the team needs inside the cluster - the `key-vault` service account and SecretStore for the
 namespace's share of its zone's vault, its default service account - is `infrastructure/tenant/`, one
 directory for every tenant, applied by the tenant's `<namespace>-access` Flux configuration with the
-tenant's values. The zone's gateway watches the namespaces of `infrastructure/zone-tenants/` (the
-ConfigMap `tenants-<zone>`). The zone's Cilium baseline applies by the namespace's label. **Adding a team
+tenant's values. The zone's gateway takes routes from the namespaces its `allowedRoutes` selects
+(`platform/zone: <zone>`). The zone's Cilium baseline applies by the namespace's label. **Adding a team
 changes nothing here**: one catalogue file in aks-terraform, applied with `dev-shared` then `dev-tenants`.
 
 | Team | Namespace | Repository |

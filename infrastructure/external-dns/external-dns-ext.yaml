@@ -1,0 +1,29 @@
+# The external gateways' DNS - the external zones' and the platform's, the Gateways labelled
+# `platform/exposure: ext`: for every hostname of an HTTPRoute attached to one, a record in the public
+# zone ${dns_zone_name} to the gateway's address. App Routing's managed external-dns (design section
+# 3.1): the add-on runs the external-dns Deployment `external-dns-ext` in this namespace and keeps it
+# current; nothing of it is in this repository but this resource.
+#
+# The route is the DNS switch: a cell publishes the names of the routes it has, and an application's
+# internal name is routed by its home cell alone (aks-terraform tenants/, `flux.home`), so no
+# filter here names a cell.
+#
+# It acts as the `<cluster identity>-dns` identity aks-terraform creates, federated with the service
+# account `external-dns` in `external-dns` (service-account.yaml), which holds DNS Zone Contributor on
+# the public zone and Private DNS Zone Contributor on the internal ones.
+apiVersion: approuting.kubernetes.azure.com/v1alpha1
+kind: ClusterExternalDNS
+metadata:
+  name: external-dns-ext
+spec:
+  resourceName: external-dns-ext
+  resourceNamespace: external-dns
+  dnsZoneResourceIDs:
+    - "${dns_zone_id}"
+  resourceTypes:
+    - gateway
+  identity:
+    type: workloadIdentity
+    serviceAccount: external-dns
+  filters:
+    gatewayLabels: platform/exposure=ext

@@ -2,7 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - repository.yaml
-  - azure-config.yaml
-  - release-ext.yaml
+  - service-account.yaml
+  - external-dns-ext.yaml
   - cilium.yaml

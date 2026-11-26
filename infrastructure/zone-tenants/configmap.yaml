@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: tenants-${zone}
-  namespace: flux-system
-data:
-  # kustomize drops the quotes around "${...}", and the value is a YAML flow sequence: ${quote} keeps it a string.
-  gateway_watch_namespaces: ${quote}${gateway_watch_namespaces}${quote}
