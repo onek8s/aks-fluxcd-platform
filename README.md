@@ -67,8 +67,8 @@ AKS Flux extension creates for the Flux configuration Terraform names `platform`
 | Controller | Namespace | Where | Chart |
 | --- | --- | --- | --- |
 | External Secrets Operator, the platform's: CRDs, webhook, controller `platform` | `external-secrets` | system pool | `external-secrets` 2.12.0 from https://charts.external-secrets.io |
-| External Secrets Operator, a zone's: controller `<zone>` | `<zone>-secrets` | system pool | the same |
-| A zone's gateway: App Routing's Envoy `<zone>-approuting-istio` | `<zone>-gateway` | system pool | none - AKS creates it for the Gateway (below) |
+| External Secrets Operator, a zone's: controller `<zone>` | `<zone>-secrets` | the zone's nodes, or the system pool ([below](#where-a-zones-gateway-and-eso-run)) | the same |
+| A zone's gateway: App Routing's Envoy `<zone>-approuting-istio` | `<zone>-gateway` | the zone's nodes, or the system pool ([below](#where-a-zones-gateway-and-eso-run)) | none - AKS creates it for the Gateway (below) |
 | The platform's gateway: the same, `platform-approuting-istio` | `platform-gateway` | system pool | the same |
 | external-dns, external and internal: App Routing's managed `external-dns-ext`, `external-dns-int` | `external-dns` | as App Routing places it | none - AKS runs it for the `ClusterExternalDNS` (below) |
 | Grafana Alloy (Fleet Management), node-exporter, kube-state-metrics, Beyla cache, OpenCost | `infra-observability` | Alloy and node-exporter on every node; the rest on the system pool | `k8s-monitoring` 4.5.2 from https://grafana.github.io/helm-charts |
@@ -81,11 +81,28 @@ there too). The AKS Flux extension runs Flux multi-tenant: a HelmRelease or Kust
 namespaces, so the HelmRepository sits next to the HelmRelease.
 
 The system pool is tainted `CriticalAddonsOnly` (aks-terraform), so only the platform's own
-controllers run there - they tolerate it and select `kubernetes.azure.com/mode: system`. That includes
-every zone's gateway and External Secrets Operator, so a zone's own nodes are for its applications
-only: node auto provisioning creates them for an application pod that selects `platform/zone: <zone>`
-and tolerates the zone's taint, and removes them again when the zone has none - a zone without
-applications costs no nodes.
+controllers run there - they tolerate it and select `kubernetes.azure.com/mode: system`.
+
+### Where a zone's gateway and ESO run
+
+A zone's gateway and External Secrets Operator run on the zone's own nodes by default (they select
+`platform/zone: <zone>` and tolerate the zone's taint): the hop from the gateway to the applications
+(h2c, design section 4.1) then stays inside the zone's slots, encrypted by the VNet, without the hub
+firewall, and the zone's nodes are never shared with another zone's gateway. The zone's on-demand pools
+then always keep the nodes the two gateway replicas and the operator need.
+
+A non-production cell may put both on the system pool instead, so that a zone without applications has
+no nodes at all (the cluster autoscaler adds the first one for a pending application pod and removes the
+last one once the zone is empty). Its `cluster-settings.yaml` then says
+
+```yaml
+  zone_platform_node_label: kubernetes.azure.com/mode
+  zone_platform_node_value: system
+```
+
+as the lab's `dev-int-stateless-az3` does. The same two values choose the nodes Cilium installs the
+gateway's load balancer on (`service.cilium.io/node-selector`). The platform's own gateway has no zone and
+stays on the system pool.
 
 ## Isolation zones
 
@@ -93,7 +110,7 @@ applications costs no nodes.
 
 | In the zone | What | Design |
 | --- | --- | --- |
-| `<zone>-gateway` | The Gateway `<zone>`, class `approuting-istio` - App Routing's Envoy Deployment and load balancer for it shaped by the ConfigMap `gateway` (system pool, small requests, load balancer annotations, `externalTrafficPolicy: Local`): one HTTPS listener for `*.<zone>.dev.onek8s.lol` with the zone's wildcard certificate, open to routes from the zone's application namespaces only. Its load balancer is an internal one in `snet-<zone>-ilb` for an internal zone, a public one for an external zone | section 4.1 |
+| `<zone>-gateway` | The Gateway `<zone>`, class `approuting-istio` - App Routing's Envoy Deployment and load balancer for it shaped by the ConfigMap `gateway` (the zone's nodes or the system pool, small requests, load balancer annotations, `externalTrafficPolicy: Local`): one HTTPS listener for `*.<zone>.dev.onek8s.lol` with the zone's wildcard certificate, open to routes from the zone's application namespaces only. Its load balancer is an internal one in `snet-<zone>-ilb` for an internal zone, a public one for an external zone | section 4.1 |
 | `<zone>-secrets` | External Secrets Operator for the zone, `controllerClass: <zone>`: it syncs the stores that name `controller: <zone>` - the zone's - and no others. No CRDs, no webhook | section 2.5 |
 | Cilium | The application baseline of the zone, the gateway's and the External Secrets Operator's policies - see [Network policies](#network-policies) | sections 2.4, 2.6, 5.1 |
 

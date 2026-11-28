@@ -7,11 +7,16 @@
 #   ${zone_internal}   "true" for an internal zone: its gateway is behind an internal load balancer
 #   ${zone_domain}     int-fi.dev.onek8s.lol - the zone's names, and its wildcard certificate's
 #   ${gateway_client_id}  the identity `<zone>-gateway` reads its certificate in the platform vault as
+#   ${zone_platform_node_label}, ${zone_platform_node_value}
+#                      optional: the nodes the zone's gateway and ESO run on, by default the zone's
+#                      own (platform/zone, the zone); kubernetes.azure.com/mode, system for the
+#                      system pool
 #
 # and the cluster's own from cluster-settings.yaml (key_vault_url, azure_tenant_id, quote).
 #
-# The zone's two platform namespaces run on the system pool, not on the zone's nodes, so that a zone
-# without applications has no nodes (its node pools scale to zero):
+# The zone's two platform namespaces run on the zone's own nodes, so that the gateway reaches the
+# applications inside the zone's slots, without the hub firewall; a non-production cell may put them
+# on the system pool, so that a zone without applications has no nodes (its node pools scale to zero):
 #
 #   <zone>-gateway   The zone's Gateway `<zone>` - class approuting-istio (App Routing's Envoy pods
 #                    and load balancer), one

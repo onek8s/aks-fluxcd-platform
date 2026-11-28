@@ -42,6 +42,11 @@ data:
   image_signing_certificate_name: "${image_signing_certificate_name}"
   image_signing_subject: "${image_signing_subject}"
   container_registry_login_server: "${container_registry_login_server}"
+  # Where the zones' gateways and External Secrets Operators run (infrastructure/zones): the system
+  # pool - a lab saving, so that a zone without applications has no nodes. Without these two they run
+  # on the zone's own nodes, as in production.
+  zone_platform_node_label: kubernetes.azure.com/mode
+  zone_platform_node_value: system
   # A double quote, for the Kustomizations that substitute from this ConfigMap: kustomize drops the
   # quotes around "${...}", so a value that must stay a string is written ${quote}...${quote}.
   quote: '"'

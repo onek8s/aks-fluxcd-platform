@@ -1,15 +1,19 @@
 # What the gateway's Deployment and Service get beyond App Routing's defaults - only fields on its
 # customization allow list (https://learn.microsoft.com/azure/aks/istio-gateway-api#configmap-customizations):
 #
-#   - the system pool, next to the platform's own gateway and controllers: a zone without
-#     applications then has no nodes at all - its node pools scale to zero;
-#   - small requests: the add-on keeps at least two replicas (its autoscaler's floor), both on the
-#     one system node of a lab cell;
+#   - the zone's own nodes (`platform/zone: ${zone}`), so that the hop from the gateway to the
+#     applications stays inside the zone's slots, encrypted by the VNet, with no firewall in between.
+#     A non-production cell may put it on the system pool instead, so that a zone without
+#     applications has no nodes: cluster-settings.yaml's `zone_platform_node_label` and
+#     `zone_platform_node_value` (`kubernetes.azure.com/mode`, `system`). It tolerates both the
+#     zone's taint and the system pool's; the node selector decides;
+#   - small requests: the add-on keeps at least two replicas (its autoscaler's floor);
 #   - the load balancer: an internal zone's is an Azure internal load balancer in the zone's own
 #     subnet snet-${zone}-ilb, reached from the network only; an external zone's is public, and
 #     the applications' names in the public zone point at it in their home cell. Only port 443: no plain HTTP anywhere, not even a redirect;
-#   - Cilium's `service.cilium.io/node-selector`: on a zone node Cilium leaves the load balancer's
-#     address alone, so a zone pod calling a published name goes out through the hub firewall;
+#   - Cilium's `service.cilium.io/node-selector`: only the nodes the gateway runs on take the load
+#     balancer's address, so a pod on any other node calling a published name goes out through the
+#     hub firewall;
 #   - `externalTrafficPolicy: Local`, which keeps the client's address on the requests the gateway
 #     sees and sends traffic only to nodes a gateway pod runs on. The load balancer then probes the
 #     Service's health check node port, so the probe annotations the add-on sets for the
@@ -28,8 +32,12 @@ data:
             platform/zone: ${zone}
         spec:
           nodeSelector:
-            kubernetes.azure.com/mode: system
+            ${zone_platform_node_label:=platform/zone}: ${zone_platform_node_value:=${zone}}
           tolerations:
+            - key: platform/zone
+              operator: Equal
+              value: ${zone}
+              effect: NoSchedule
             - key: CriticalAddonsOnly
               operator: Exists
           containers:
@@ -48,8 +56,8 @@ data:
       annotations:
         service.beta.kubernetes.io/azure-load-balancer-internal: "${zone_internal}"
         service.beta.kubernetes.io/azure-load-balancer-internal-subnet: snet-${zone}-ilb
-        # Cilium installs the Service on the nodes outside the zones alone (design D73): a zone pod that calls a published name goes through the hub firewall.
-        service.cilium.io/node-selector: "!platform/zone"
+        # Cilium installs the Service on the gateway's own nodes alone (design D73): a pod on any other node that calls a published name goes through the hub firewall.
+        service.cilium.io/node-selector: "${zone_platform_node_label:=platform/zone}=${zone_platform_node_value:=${zone}}"
         service.beta.kubernetes.io/port_80_health-probe_port:
         service.beta.kubernetes.io/port_80_health-probe_protocol:
         service.beta.kubernetes.io/port_80_health-probe_request-path:
